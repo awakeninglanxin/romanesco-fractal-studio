@@ -237,10 +237,10 @@ a:hover{text-decoration:underline}
         </select>
       </div>
       <div class="row">
-        <label>分级配色 cmap <b id="vCmap">斐波那契螺旋臂</b></label>
+        <label>分级配色 cmap <b id="vCmap">HSV·臂深浅</b></label>
         <select id="cmap">
+          <option value="hsvarm" selected>HSV色环 · 螺旋臂深浅间隔</option>
           <option value="fib">斐波那契螺旋臂（黄·绿·紫·推荐）</option>
-          <option value="hsvarm">HSV色环 · 螺旋臂深浅间隔</option>
           <option value="viridis">Viridis（紫→黄绿）</option>
           <option value="level">按层级（每级异色）</option>
           <option value="hsv">HSV 连续色环</option>
@@ -416,7 +416,7 @@ var S={levels:3,angleDeg:137.508,cones:11,r2l:0.95,i2o:0.43,pal:0,form:'upright'
        spiralMode:'golden', spiralDeg:45, upBudsEff:24,  // 底层分布算法 / 对称角度 / 预算自适应后生效芽数
        autoFill:false, fillK:1.00, fillCount:0,        // 自动填满三角空隙 / 补株相对尺寸(≤1) / 实际补株数
        hexBase:true, hexThick:5, hexOverlap:0.00,     // 红色六边形砖底盘(默认开) / 厚度mm / 与株底重叠高度(默认0)
-       cmap:'fib', fibArms:13, fibTwist:2.6,           // 默认斐波那契螺旋臂配色 / 臂数(8/13/21) / 对数螺旋缠绕紧度
+       cmap:'hsvarm', fibArms:13, fibTwist:2.6,        // 默认 HSV色环·螺旋臂深浅间隔 / 臂数(8/13/21) / 对数螺旋缠绕紧度
                                                       // 其它可选: viridis/level/hsv/turbo/plasma/height
        spin:false,spiral:false,wire:false,speed:1,prog:1,playing:false,seed:12345,
        leaves:[],visible:0,altitude:6,
@@ -675,34 +675,30 @@ function buildFractal(keepCam){
     }
     pts=pts.slice(0,need);
 
-    /* ===== 自动填满 = 补齐到下一个完整六边形环（轴向坐标格点法）=====
-       六边形中心数序列 1,7,19,37…（半径 k 环含 3k²+3k+1 格点）。
-       主株 upN=7(中心+6环绕,k=1) 开启后补齐到 k=2 的 19 个格点 → 补 12 株，
-       正好是一整圈第二环、外轮廓仍是标准正六边形（不是三角重心/外缘顶点那种近似）。
-       轴向坐标 (q,r) → 笛卡尔: x=d·(q+r/2), z=d·(√3/2·r);  环号=max(|q|,|r|,|q+r|)。*/
+    /* ===== 自动填满 = 三角孔洞补小株（不是外圈加花盘）=====
+       一株花盘 = 1中心+6环绕 共 7 小株；花盘中心阵在间距 d 的三角格点上。
+       相邻三株花盘两两相切，中间留一个等边三角形白色空隙。
+       枚举每个主株周围 6 对相邻方向，若三角形三顶点都在主株集合中 → 该三角是
+       内部封闭孔洞，在其重心放 1 株缩小的 Broccoli 小株（单锥），把白色空隙补上。
+       主株数量与外轮廓完全不变：upN=7 → 6 个孔；upN=19 → 24 个孔；upN=37 → 54 个孔。 */
     if(S.autoFill&&pts.length>=3){
       var SQ3=Math.sqrt(3);
-      var qkOf=function(p){return Math.round(p.x/d*100)+'_'+Math.round(p.z/d*100);};
-      var exist={};pts.forEach(function(p){exist[qkOf(p)]=1;});  // 已有主株(浮点坐标)的 key
-      // 由笛卡尔坐标反解轴向坐标(四舍五入到最近格点)
-      var axialOf=function(p){
-        var qf=p.x/d - p.z/(d*SQ3), rf=(2/Math.sqrt(3))*p.z/d;
-        return {q:Math.round(qf),r:Math.round(rf)};
-      };
-      var xyOf=function(q,r){return {x:d*(q+r/2),z:d*(SQ3/2*r)};};
-      var ringOf=function(q,r){return Math.max(Math.abs(q),Math.abs(r),Math.abs(q+r));};
-      // 主株最大环号 k
-      var kmax=1;pts.forEach(function(p){var a=axialOf(p);var kr=ringOf(a.q,a.r);if(kr>kmax)kmax=kr;});
-      var kfill=kmax+1;                              // 补齐到下一环
-      var fills=[];
-      for(var q=-kfill;q<=kfill;q++)for(var r=-kfill;r<=kfill;r++){
-        if(ringOf(q,r)!==kfill)continue;              // 只取新增的这一环
-        var pos=xyOf(q,r);
-        if(exist[qkOf(pos)])continue;                 // 已存在则跳过
-        fills.push({x:pos.x,z:pos.z});
-      }
-      // 补株用缩小比例：整体 scale 乘 fillK
-      fills.forEach(function(f){pts.push({x:f.x,z:f.z,fill:true});});
+      var pkey=function(x,z){return Math.round(x/d*1000)+'_'+Math.round(z/d*1000);};
+      var mainSet={};pts.forEach(function(p){mainSet[pkey(p.x,p.z)]=1;});
+      // 三角格点 6 个相邻方向（basis e_q=(d,0), e_r=(d/2,d√3/2)）
+      var nbr=[[d,0],[d/2,d*SQ3/2],[-d/2,d*SQ3/2],[-d,0],[-d/2,-d*SQ3/2],[d/2,-d*SQ3/2]];
+      var seen={},fills=[];
+      pts.forEach(function(p){
+        for(var i=0;i<6;i++){
+          var a=nbr[i],b=nbr[(i+1)%6];
+          var q={x:p.x+a[0],z:p.z+a[1]},r={x:p.x+b[0],z:p.z+b[1]};
+          if(!mainSet[pkey(q.x,q.z)]||!mainSet[pkey(r.x,r.z)])continue;  // 缺顶点=外缘开孔，不补
+          var cx=(p.x+q.x+r.x)/3,cz=(p.z+q.z+r.z)/3;
+          var ck=pkey(cx,cz);if(seen[ck])continue;seen[ck]=1;             // 同一三角去重
+          fills.push({x:cx,z:cz,hole:true,seq:i});
+        }
+      });
+      fills.forEach(function(f){pts.push(f);});
       S.fillCount=fills.length;
     }
     }
@@ -723,7 +719,11 @@ function buildFractal(keepCam){
        原来 levels=5 理论锥数 ≈ 70万 >> MAX，递归中途硬截断 → 父锥已渲染、子锥没长 → 露出大圆锥面。
        这里反解在预算内可完整生成的最大芽数：每底盘锥数 = 1+b+...+b^(lv-1) */
     var BUDGET=80000;                                   // 完整子树预算：层数修正后按 lv 计代价，留余量避免截断
-    var perBase=Math.max(2,Math.floor(BUDGET/(pts.length*baseCells.length)));
+    // 按"实际底盘锥数"分摊预算：主株 7 锥、三角孔补株仅 1 锥。
+    // 若统一按 pts.length*7 算，开补株会把每株芽数从 29 压到 15，主株变糙、总锥数骤降。
+    var holeN=0;for(var hpi=0;hpi<pts.length;hpi++){if(pts[hpi].hole)holeN++;}
+    var realCells=(pts.length-holeN)*baseCells.length+holeN;
+    var perBase=Math.max(2,Math.floor(BUDGET/realCells));
     var layers=lv;                                      // 实际渲染层数：1=仅底盘锥；2=加一代；3=加两代
     function treeCost(b,L){var s=0,t=1;for(var k=0;k<L;k++){s+=t;t*=b;}return s;}
     var budsEff=buds;
@@ -780,27 +780,30 @@ function buildFractal(keepCam){
     S.uprightCenters=[]; S.uprightUnitR=unitR; S.uprightD=d;   // 供平面六边形砖底盘使用
     for(var pi=0;pi<pts.length;pi++){
       var p=pts[pi],gid=(p.gid!=null)?p.gid:null,cX=0,cZ=0;
+      var isHole=!!p.hole, kf=isHole?S.fillK:1;        // 三角孔补株：单株缩小(由补株大小滑杆控)
       var rootPl=new THREE.Object3D();
       if(p.mat){                            // 正60面体：整株按面法线"竖"在该面上
         rootPl.matrixAutoUpdate=false;
         rootPl.matrix.copy(p.mat);
         cX=p.mat.elements[12];cZ=p.mat.elements[14];
       }else{                                // 平面蜂窝：底面平放平台
-        S.uprightCenters.push({x:p.x,z:p.z,k:p.fill?S.fillK:1});
-        var sc=scale*(p.fill?S.fillK:1);
+        S.uprightCenters.push({x:p.x,z:p.z,k:kf,hole:isHole});
+        var sc=scale*kf;
         rootPl.position.set(p.x,0,p.z);
         rootPl.scale.setScalar(sc);
         cX=p.x;cZ=p.z;
       }
       parent.add(rootPl);
-      // 7 个底盘锥：中心 1 + 环绕 6，底面两两相切 → 从底下看就是标准六边形蜂窝(生命之花)
-      for(var bi=0;bi<baseCells.length&&nodeCount<MAX;bi++){
+      // 主株：7 个底盘锥(1中心+6环绕)两两相切 → 底部标准六边形蜂窝；
+      // 三角孔补株：只放中心 1 个锥，长一株完整 Broccoli 小株填白色空隙。
+      var cells=isHole?[baseCells[0]]:baseCells;
+      for(var bi=0;bi<cells.length&&nodeCount<MAX;bi++){
         var bp=new THREE.Object3D();
-        bp.position.set(baseCells[bi].x,0,baseCells[bi].z);
+        bp.position.set(cells[bi].x,0,cells[bi].z);
         rootPl.add(bp);nodeCount++;
         // 该花球中心在 rootObj 局部坐标 = 株位置 + 底盘锥局部位置×株缩放
-        var sc2=(p.mat)?0:scale*(p.fill?S.fillK:1);   // 多面体模式用 gid 分组，cx/cz 只作平面模式后备
-        broccoli(bp,bH,bR,1,cX+baseCells[bi].x*sc2,cZ+baseCells[bi].z*sc2,bi,gid);
+        var sc2=(p.mat)?0:scale*kf;   // 多面体模式用 gid 分组，cx/cz 只作平面模式后备
+        broccoli(bp,bH,bR,1,cX+cells[bi].x*sc2,cZ+cells[bi].z*sc2,bi,gid);
       }
     }
   }
@@ -1311,6 +1314,16 @@ function buildFractal(keepCam){
 
   window.__exporters={stl:exportSTL,obj:exportOBJ,ply:exportPLY,step:exportSTEP,stp:exportSTEP};
   window.__cam={theta:function(){return cam.theta;},phi:function(){return cam.phi;},radius:function(){return cam.radius;}};  // 只读调试接口
+  // 三角孔补株只读调试：主株格点、补株重心、间距 d、实际补株数
+  window.__fill=function(){
+    var centers=(S.uprightCenters||[]);
+    return {
+      autoFill:!!S.autoFill, fillK:S.fillK, fillCount:S.fillCount, d:S.uprightD,
+      main:centers.filter(function(c){return !c.hole;}),
+      holes:centers.filter(function(c){return c.hole;}),
+      cmap:S.cmap
+    };
+  };
   window.__poly=(S.form==='poly'&&faces)?{
     faces:faces.length,
     pent:faces.filter(function(f){return f.type==='pent';}).length,
@@ -1355,7 +1368,7 @@ function updateHUD(){
   var polyInfo=(S.form==='poly')?('<br><b>⚽ 正60面体</b> 32 面贴砖 ｜ 12 五边形(5株中空) + 20 六边形(6+1中实) ｜ 花盘 <b>'+S.polyFlowers+'</b>'):'';
   var algo=(S.form==='upright'||S.form==='poly')?('<br>分布算法 <b>'+spiralModeName(S.spiralMode)+'</b>'+(S.spiralMode==='custom'?' '+Math.round(S.spiralDeg)+'°':'')+
     ' ｜ 生效芽数 <b>'+(S.upBudsEff||S.upBuds)+'</b>'+(S.upBudsEff&&S.upBudsEff<S.upBuds?'（预算收敛）':'')+
-    (S.autoFill?'<br>自动填满 <b>开</b> ｜ 补株 <b>'+S.fillCount+'</b> 个（'+S.fillK.toFixed(2)+'×）':'')+
+    (S.autoFill?'<br>三角孔补株 <b>开</b> ｜ 白隙补小株 <b>'+S.fillCount+'</b> 株（'+S.fillK.toFixed(2)+'×）':'')+
     (S.hexBase?'<br>六边形砖底盘 <b>开</b> ｜ '+S.hexThick+'mm ｜ 重叠 '+S.hexOverlap.toFixed(2):'')):'';
   $('hudBody').innerHTML='锥体总数 <b>'+n+'</b> ｜ 已长出 <b>'+v+'</b><br>'+
     '自相似层数 <b>'+S.levels+'</b> ｜ 发散角 <b>'+a.toFixed(3)+'°</b><br>'+

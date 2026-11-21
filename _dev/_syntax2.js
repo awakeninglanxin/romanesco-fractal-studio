@@ -257,15 +257,23 @@ function buildPolyEdgeLines(faces,lift){
 /* 正60面体的每面贴砖布局：5边形=5株中空；6边形=6株+偏小中心株 */
 function buildPolyPlacements(faces,H0,r2l,edge){
   var unitR=H0*r2l*0.44;                 // 单株花盘底面半径（场景单位，与平面蜂窝一致）
-  var rHex=0.275*edge;                   // 六边形面外环花盘半径：略收 → 面砖边缘可见，5/6 分组清晰
-  var rPent=0.250*edge;                  // 五边形面外环花盘半径：略收 → 五边形轮廓清晰
-  var sHex=rHex/unitR,sPent=rPent/unitR,sMid=sHex*0.62;
+  /* 贴满整面的几何推导（r=花盘半径, ring=花盘中心到面心距离）：
+     正六边形 外接R=1.0e / 内切a=0.866e；正五边形 外接R=0.851e / 内切a=0.688e。
+     相切布局(ring=2r)只能在一点相切，边中点方向必然漏灰底 → 改为花盘适度重叠。
+     六边形: ring+r≥R(顶点), 0.866·ring+√(r²-(0.5·ring)²)≥a(边中点), rMid≥ring-r(填中心洞)。
+     五边形: ring+r≥0.851e, 0.809·ring+√(r²-(0.588·ring)²)≥0.688e；中心留小洞(5中空)。 */
+  var rHex=0.44*edge;                    // 六边形面花盘半径（覆盖到顶点/边）
+  var ringHex=0.74*edge;                 // 六边形 6 株环绕半径（相邻花盘重叠）
+  var rMid=0.36*edge;                    // 六边形中心株（偏小，填实中心洞）
+  var rPent=0.45*edge;                   // 五边形面花盘半径
+  var ringPent=0.60*edge;                // 五边形 5 株环绕半径
+  var sHex=rHex/unitR,sPent=rPent/unitR,sMid=rMid/unitR;
   var out=[];
   faces.forEach(function(f,fi){
     var M0=new THREE.Matrix4().makeBasis(f.u,f.normal,f.w);
     var isHex=f.type==='hex';
     var cnt=isHex?6:5;
-    var ring=isHex?2*rHex:(rPent/Math.sin(Math.PI/5));
+    var ring=isHex?ringHex:ringPent;
     var sc=isHex?sHex:sPent;
     for(var k=0;k<cnt;k++){
       var a=f.offset+2*Math.PI*k/cnt;

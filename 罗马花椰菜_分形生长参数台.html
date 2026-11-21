@@ -600,11 +600,11 @@ function buildPolyPlacements(faces,H0,r2l,edge){
      相切布局(ring=2r)只能在一点相切，边中点方向必然漏灰底 → 改为花盘适度重叠。
      六边形: ring+r≥R(顶点), 0.866·ring+√(r²-(0.5·ring)²)≥a(边中点), rMid≥ring-r(填中心洞)。
      五边形: ring+r≥0.851e, 0.809·ring+√(r²-(0.588·ring)²)≥0.688e；中心留小洞(5中空)。 */
-  var rHex=0.44*edge;                    // 六边形面花盘半径（覆盖到顶点/边）
-  var ringHex=0.74*edge;                 // 六边形 6 株环绕半径（相邻花盘重叠）
-  var rMid=0.36*edge;                    // 六边形中心株（偏小，填实中心洞）
-  var rPent=0.45*edge;                   // 五边形面花盘半径
-  var ringPent=0.60*edge;                // 五边形 5 株环绕半径
+  var rHex=0.48*edge;                    // 六边形面花盘半径：与 ring 配合使外缘≈顶点(不越界), 内缘填中心洞
+  var ringHex=0.54*edge;                 // 六边形 6 株环绕半径：相邻花盘重叠、外缘 ring+r≈1.02e
+  var rMid=0.34*edge;                    // 六边形中心株（偏小，填实中心洞 ring-r≈0.06e）
+  var rPent=0.42*edge;                   // 五边形面花盘半径：外缘 ring+r≈0.87e≈外接0.851e
+  var ringPent=0.45*edge;                // 五边形 5 株环绕半径（重叠贴面，中心留中空）
   var sHex=rHex/unitR,sPent=rPent/unitR,sMid=rMid/unitR;
   var out=[];
   faces.forEach(function(f,fi){

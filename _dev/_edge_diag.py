@@ -28,7 +28,7 @@ def js(e):return call('Runtime.evaluate',{'expression':e,'returnByValue':True,'a
 def shot(p):
   d=call('Page.captureScreenshot',{'format':'png'})['result']['data'];open(p,'wb').write(base64.b64decode(d));print('SHOT',p,os.path.getsize(p))
 call('Page.enable');call('Runtime.enable');call('Network.enable');call('Network.setCacheDisabled',{'cacheDisabled':True})
-call('Page.navigate',{'url':'http://127.0.0.1:8899/'+urllib.parse.quote('罗马花椰菜_分形生长参数台.html')})
+call('Page.navigate',{'url':'http://127.0.0.1:8899/'+urllib.parse.quote('罗马花椰菜_分形生长参数台.html')+'?debug=1'})
 for _ in range(80):
   if js("typeof THREE!=='undefined' && document.getElementById('hudBody').innerText.length>0"):break
   time.sleep(0.5)

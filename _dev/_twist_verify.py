@@ -34,7 +34,7 @@ def shot_raw():
 def shot(p):
     d=shot_raw();open(p,'wb').write(base64.b64decode(d));print('SHOT',p,os.path.getsize(p))
 call('Page.enable');call('Runtime.enable');call('Network.enable');call('Network.setCacheDisabled',{'cacheDisabled':True})
-url='http://127.0.0.1:8899/'+urllib.parse.quote('罗马花椰菜_分形生长参数台.html')
+url='http://127.0.0.1:8899/'+urllib.parse.quote('罗马花椰菜_分形生长参数台.html')+'?debug=1'
 call('Page.navigate',{'url':url})
 for _ in range(90):
     if js("document.getElementById('hudBody')&&document.getElementById('hudBody').innerText.indexOf('锥体总数')>=0"):break

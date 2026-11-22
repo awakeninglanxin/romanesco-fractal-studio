@@ -25,7 +25,7 @@ def call(m,p=None):
     if r.get('id')==n:return r
 def js(e):return call('Runtime.evaluate',{'expression':e,'returnByValue':True,'awaitPromise':True}).get('result',{}).get('result',{}).get('value')
 call('Page.enable');call('Runtime.enable');call('Page.enable');call('Network.enable');call('Network.setCacheDisabled',{'cacheDisabled':True})
-call('Page.navigate',{'url':'http://127.0.0.1:8899/'+urllib.parse.quote('罗马花椰菜_分形生长参数台.html')})
+call('Page.navigate',{'url':'http://127.0.0.1:8899/'+urllib.parse.quote('罗马花椰菜_分形生长参数台.html')+'?debug=1'})
 for _ in range(80):
   if js("typeof THREE!=='undefined' && document.getElementById('hudBody') && document.getElementById('hudBody').innerText.length>0"):break
   time.sleep(0.5)

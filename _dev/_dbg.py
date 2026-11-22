@@ -2,7 +2,7 @@ import time, urllib.parse
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
-URL = "http://127.0.0.1:8899/" + urllib.parse.quote('罗马花椰菜_分形生长参数台.html')
+URL = "http://127.0.0.1:8899/" + urllib.parse.quote('罗马花椰菜_分形生长参数台.html')+'?debug=1'
 opts = Options()
 for a in ["--headless=new", "--no-sandbox", "--enable-webgl", "--use-gl=swiftshader",
           "--enable-unsafe-swiftshader", "--window-size=1500,950"]:

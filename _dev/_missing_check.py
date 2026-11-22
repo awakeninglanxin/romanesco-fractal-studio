@@ -29,7 +29,7 @@ def js(e):
 def setv(id_, v, ev='input'):
     js("(function(){var e=document.getElementById('%s');e.value=%s;e.dispatchEvent(new Event('%s',{bubbles:true}));})()" % (id_, json.dumps(str(v)), ev))
 call('Page.enable'); call('Runtime.enable')
-call('Page.navigate', {'url': 'http://127.0.0.1:8899/' + urllib.parse.quote('罗马花椰菜_分形生长参数台.html')})
+call('Page.navigate', {'url': 'http://127.0.0.1:8899/' + urllib.parse.quote('罗马花椰菜_分形生长参数台.html')+'?debug=1'})
 for _ in range(100):
     if js("document.getElementById('hudBody') && document.getElementById('hudBody').innerText.indexOf('锥体总数')>=0"): break
     time.sleep(0.5)

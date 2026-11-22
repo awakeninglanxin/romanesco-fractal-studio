@@ -80,6 +80,17 @@ button.primary:hover{background:#25663f}
 a{color:var(--green);text-decoration:none}
 a:hover{text-decoration:underline}
 @media(max-width:700px){:root{--dw:270px}}
+/* 导出/重建遮罩：同步计算期间给明确反馈，避免被误认为卡死（浅色系，符合白底风格） */
+#busy{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+      background:rgba(255,255,255,.74);z-index:99}
+#busy.on{display:flex}
+#busy .card{background:#fff;border:1px solid var(--line);border-radius:10px;
+            padding:18px 26px;box-shadow:0 8px 28px rgba(0,0,0,.10);text-align:center;min-width:250px}
+#busy .sp{width:22px;height:22px;margin:0 auto 12px;border:2px solid #e2e8e3;
+          border-top-color:var(--green);border-radius:50%;animation:bsp .8s linear infinite}
+@keyframes bsp{to{transform:rotate(360deg)}}
+#busy .t{font-size:13px;color:var(--ink);font-weight:600}
+#busy .s{font-size:11px;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -94,6 +105,7 @@ a:hover{text-decoration:underline}
 <div class="legend" id="legend"></div>
 <div id="tip">鼠标拖拽旋转 · 滚轮缩放 · 右键平移</div>
 <div id="err"></div>
+<div id="busy"><div class="card"><div class="sp"></div><div class="t" id="busyT">…</div><div class="s" id="busyS"></div></div></div>
 
 <div id="dock">
   <div id="dockResize" title="拖动调节宽度"></div>
@@ -117,9 +129,49 @@ a:hover{text-decoration:underline}
         <option value="upright" selected>🪷 直立花盘 — 蜂窝·垂直平放的花椰菜（可选）</option>
         <option value="xmas">🎄 圣诞树 — 蜂窝·全垂直创意（可选）</option>
         <option value="bucky">⚽ 正60面体 — 32面贴砖直立花盘（可选）</option>
+        <option value="pent">⬟ 正五边形 — 相切平放花盘（可选）</option>
       </select>
       <div class="note" id="polyNote" style="margin-top:8px;display:none">⚽ <b>正60面体</b>＝截角二十面体（足球烯 C60 结构）：<b>60 顶点 / 90 棱 / 32 面</b>，其中 <b>12 个正五边形 + 20 个正六边形</b>。每个面像贴砖一样铺满直立花盘：<br>• 五边形面 → <b>5 株环绕、中心留空</b>；<br>• 六边形面 → <b>6 株环绕 + 中心 1 株偏小（中实）</b>；<br>• 每面淡灰色多边形底砖与相邻面共边，严丝合缝；切换此预设后自动关闭平面大六边形底盘与三角补株。</div>
       <label class="chk" id="polyEdgesRow" style="display:none;margin-top:7px"><input type="checkbox" id="polyEdges" checked> ⚽ 显示 90 条棱线（便于辨认五/六边形贴砖）</label>
+      <div class="row" id="polyDensRow" style="display:none;margin-top:6px">
+        <label>每面花盘密度 LOD <b id="vPolyDens">贴砖·密集</b></label>
+        <select id="polyDens">
+          <option value="rich" selected>贴砖·密集（五 5+1+5缝 / 六 6+1，272 株）</option>
+          <option value="one">单朵·精雕（每面 1 株，32 株 · 每株芽数 ×3）</option>
+        </select>
+      </div>
+      <div class="note" id="pentNote" style="margin-top:8px;display:none">⬟ <b>正五边形花盘</b>＝单块正五边形淡灰底砖平放，顶面按 5 个顶点方向贴直立花盘：<b>5 株环绕</b>彼此平放相切、不重叠；用下方开关决定是否<b>补中心那株偏小的圆锥</b>（勾＝6 株中实，不勾＝5 株中空）。花盘半径 / 环绕半径按真实几何精确相切计算。</div>
+      <label class="chk" id="pentSolidRow" style="display:none;margin-top:7px"><input type="checkbox" id="pentSolid" checked> ⬟ 补中心圆锥（勾＝6 株中实，不勾＝5 株中空）</label>
+      <div class="row" id="pentAlgoRow" style="display:none;margin-top:8px">
+        <label>底层算法 <b id="vPentAlgo">相切平铺</b></label>
+        <select id="pentAlgo">
+          <option value="tangent" selected>相切平铺 — 5/6 株贴满五边形（原）</option>
+          <option value="ifs">IFS · Sierpinski 五边形（自相似递归布株）</option>
+          <option value="ifs3d">IFS · 五棱锥花盘山（混沌游戏 + 坡面法线）</option>
+        </select>
+      </div>
+      <div class="row" id="ifsDepthRow" style="display:none">
+        <label>IFS 递归层数 <b id="vIfsDepth">2</b></label>
+        <input type="range" id="ifsDepth" min="1" max="3" value="2">
+      </div>
+      <label class="chk" id="ifsCenterRow" style="display:none"><input type="checkbox" id="ifsCenter" checked> 含第 6 个中心映射（相位 36°·Dürer 密实版）</label>
+      <div class="row" id="ifsNRow" style="display:none">
+        <label>基础花盘数 N <b id="vIfsN">160</b></label>
+        <input type="range" id="ifsN" min="24" max="240" step="8" value="160">
+      </div>
+      <div class="row" id="ifsFillRow" style="display:none">
+        <label>自相似补缝级数 <b id="vIfsFill">2</b></label>
+        <input type="range" id="ifsFill" min="0" max="3" value="2">
+      </div>
+      <div class="btns" id="ifsAutoRow" style="display:none;margin-top:8px">
+        <button id="btnPentAuto" class="primary">✨ 一键最优铺满</button>
+      </div>
+      <div class="note" id="ifsAutoNote" style="display:none"></div>
+      <div class="note" id="ifsNote" style="display:none">IFS 用五重对称的收缩映射布株：<b>p ← s·p + (1−s)·V<sub>k</sub></b>，<b>s = 1/(1+φ) = (3−√5)/2 ≈ 0.381966</b>，V<sub>k</sub> 为五个顶点（+ 中心/尖顶）。<br>• <b>Sierpinski 五边形</b>：每个副本以顶点为不动点收缩，相邻副本在该顶点相切；递归 2 层＝6²=36 株，1 层＝6 株。<br>• <b>五棱锥花盘山</b>＝山（五棱锥坡面）+ 树（沿坡面法线的花盘）+ 铺满（面内覆盖求解）。<br>
+      <b>为什么不能靠混沌游戏铺满</b>：混沌游戏只在"无限细分"的极限下铺满三角形，有限个点一定成团、团间一定留洞（加大 N 只把洞变小）。更根本的是<b>单个花盘自身就漏</b>：7 个底盘锥相切（环半径 2b）时，相邻花瓣在 30° 方向留 6 个凹口，最近只到 0.42 倍花盘半径 —— 任何摆法都补不上。<br>
+      <b>求解器（一键最优）</b>：① 7 圆盘并集无孔 → 花瓣环收到 <b>1.70b</b>（重叠 15%，圆心三角形外接圆 0.98b&lt;b）；② 三角格点间距 <b>d = 1.44·rf</b>（相切平铺 √3·rf 仍留 4~9% 齿槽）；③ 抖动 0.12d 去机械感；④ 覆盖率栅格 + BFS 距离场，在最大空洞补 0.4~0.9 倍小花盘（<b>自相似尺度层级</b>），迭代到栅格全覆盖。结果按 <b>HUD 覆盖率</b> 验收，不靠肉眼。</div>
+
+
     </div>
 
     <div class="sec">
@@ -148,7 +200,11 @@ a:hover{text-decoration:underline}
       </div>
       <div class="row">
         <label>发散角 α（黄金角） <b id="vAngle">137.508°</b></label>
-        <input type="range" id="angle" min="100" max="160" value="137.508" step="0.001">
+        <input type="range" id="angle" min="45" max="160" value="137.508" step="0.001">
+      </div>
+      <div class="row" style="margin-top:-3px;display:flex;gap:6px">
+        <button id="btnAngle45" style="flex:1;padding:5px;font-size:10px" title="一键设发散角 α = 45°">📐 发散角 = 45°</button>
+        <button id="btnAngleGolden" style="flex:1;padding:5px;font-size:10px" title="一键设发散角 α = 黄金角 137.508°">🌾 黄金角 = 137.508°</button>
       </div>
       <div class="row">
         <label>每层锥数 N <b id="vCones">11</b></label>
@@ -164,6 +220,19 @@ a:hover{text-decoration:underline}
       <div class="row">
         <label>内/外锥半径比 <b id="vI2O">0.43</b></label>
         <input type="range" id="i2o" min="20" max="80" value="43">
+      </div>
+      <div id="growBaseSec">
+        <label class="chk"><input type="checkbox" id="trunkBase" checked> 🌳 第0级连片主体（中央母锥·把子锥连成山/树）</label>
+        <label class="chk" style="margin-left:16px"><input type="checkbox" id="trunkAll"> 每级中轴都渲染（宝塔芯）</label>
+        <label class="chk"><input type="checkbox" id="growBase" checked> 淡灰色落地底盘（三种分形塔·包络塔底）</label>
+        <div class="row" style="margin-top:4px">
+          <label>底盘形状</label>
+          <select id="growBaseShape">
+            <option value="round">圆形底盘（包络外接圆）</option>
+            <option value="hex">正六边形底盘</option>
+          </select>
+        </div>
+        <div class="note" style="margin-top:4px">以上三项仅对三种分形塔（罗马花椰菜/花椰菜/西兰花）生效。<strong>第0级连片主体</strong>会渲染中央母锥，把原本散开的子锥连成一座山/树（levels=1 尤其明显）；<strong>落地底盘</strong>托住塔底。另：<strong>🚫 删除底面暴露锥</strong>（在直立花盘参数区）已全局生效——凡世界轴接近水平/朝下、底面会露出平底的锥，从数学底层连同子树一起删除，任何角度都看不到圆锥底面。</div>
       </div>
       <div class="note" id="fibNote"></div>
     </div>
@@ -181,7 +250,7 @@ a:hover{text-decoration:underline}
         <label>单元间距(>2 留缝) <b id="vUpSpread">1.00×</b></label>
         <input type="range" id="upSpread" min="10" max="30" value="10">
       </div>
-      <label class="chk"><input type="checkbox" id="autoFill"> 自动填满空隙（三角孔洞补小株）</label>
+      <label class="chk"><input type="checkbox" id="autoFill"> 自动填满空隙（内部三角孔 + 边缘缺口 都补小株）</label>
       <div class="row" id="fillKRow" style="display:none">
         <label>补株大小 <b id="vFillK">1.00×</b></label>
         <input type="range" id="fillK" min="20" max="100" value="100">
@@ -198,19 +267,25 @@ a:hover{text-decoration:underline}
         </div>
       </div>
       <div class="row">
-        <label>每级芽数(Broccoli) <b id="vUpBuds">55</b></label>
-        <input type="range" id="upBuds" min="3" max="120" value="55">
+        <label>每级芽数(Broccoli) <b id="vUpBuds">25</b></label>
+        <input type="range" id="upBuds" min="3" max="120" value="25">
+      </div>
+      <label class="chk" style="margin:2px 0 6px"><input type="checkbox" id="trimApex" checked> ✂ 删除每段分形最顶尖的突出小圆锥（数学底层不生成）</label>
+      <label class="chk" style="margin:2px 0 6px"><input type="checkbox" id="cullBottom" checked> 🚫 消除底面暴露的圆锥（倒挂删除 / 近水平扶正）</label>
+      <div class="row" id="cullFloorRow">
+        <label>底面可见判定阈值 <b id="vCullFloor">0.35</b></label>
+        <input type="range" id="cullFloor" min="0" max="80" value="35">
       </div>
       <div class="row">
         <label>子锥倾角(0=垂直平放) <b id="vUpTilt">0.00</b></label>
         <input type="range" id="upTilt" min="0" max="100" value="0">
       </div>
       <div class="row">
-        <label>底层分布算法 <b id="vSpiralMode">黄金角螺旋</b></label>
+        <label>底层分布算法 <b id="vSpiralMode">六重 60°（六边形对称）</b></label>
         <select id="spiralMode">
+          <option value="hex60" selected>六重 60°（六边形对称）</option>
           <option value="golden">黄金角 137.508°（自然螺旋·非镜像对称）</option>
           <option value="silver">白银比 61.7°（360°/ρ²）</option>
-          <option value="hex60">六重 60°（六边形对称）</option>
           <option value="oct45">八重 45°（八方对称）</option>
           <option value="dec36">十重 36°（十方对称）</option>
           <option value="quad90">四重 90°（十字对称）</option>
@@ -299,6 +374,24 @@ a:hover{text-decoration:underline}
     </div>
 
     <div class="sec">
+      <h2>3D 打印 · 水密体重铸</h2>
+      <div class="note" style="margin-top:2px">上面导出的模型是<b>「视觉实体」</b>：每个锥各带一套封闭三角面、彼此穿插 → 切片软件会报<b>非流形边/自相交</b>。这里把所有锥写成<b>有符号距离场</b>做真布尔并集（min + 平滑并集），再用 Surface Nets 重铸成<b>闭合网格</b>：<b>边界边 0</b>（没有任何孔洞），三角面数比原始少一个数量级。代价：精度受体素限制；薄壁处可能残留极少量<b>亚体素级自接触边</b>（Surface Nets 的固有行为，切片软件会自动处理）。</div>
+      <div class="row" style="margin-top:8px">
+        <label>重铸精度（体素数） <b id="vPrintRes">中 · 144</b></label>
+        <select id="printRes">
+          <option value="96">粗 · 96（最快）</option>
+          <option value="144" selected>中 · 144（推荐）</option>
+          <option value="200">细 · 200（慢）</option>
+        </select>
+      </div>
+      <label class="chk"><input type="checkbox" id="printBase" checked> 加 2mm 圆形平底托（便于放置/上机）</label>
+      <div class="btns" style="margin-top:8px">
+        <button id="btnPrint" class="primary">🖨 导出水密 STL</button>
+      </div>
+      <div class="note" id="printInfo" style="margin-top:7px">输出文件名带 <b>_watertight</b> 后缀；体素粗时细小锥尖会被平滑掉，属正常现象（提高精度可保留细节）。</div>
+    </div>
+
+    <div class="sec">
       <h2>数学模型（源码级）</h2>
       <div class="formula">α = 137.507° = 360°/φ²   (黄金角)
 sᵢ = i · h/N              (沿锥轴下行)
@@ -340,6 +433,16 @@ if(typeof THREE==='undefined'){
 (function(){
 "use strict";
 var $ = function(id){return document.getElementById(id);};
+/* 调试钩子开关：只有 URL 带 ?debug=1 时才把 window.__* 只读接口暴露出去。
+   默认不挂全局，避免生产页面被一堆 __ 开头的接口污染（其中 __tileSet/__tileColor
+   还能直接改几何和材质）。自动化验证脚本请使用 ?debug=1 打开。 */
+var DEBUG=/[?&]debug=1/.test(location.search);
+/* 导出器注册表：在 IIFE 顶层声明，initScene 里赋值、initUI 的回调里使用。
+   （导出函数定义在更内层作用域，若在此处写成 var 会被锁在那一层，按钮就取不到） */
+var EXPORTERS=null;
+/* 水密体重铸：导出函数同样定义在更深的（buildFractal）作用域里，
+   这里在顶层留一个入口对象，由 buildFractal 内部赋值，initUI 的回调才能调到。 */
+var PRINTAPI=null;
 if(typeof THREE==='undefined'){
   $('err').style.display='flex';
   $('err').textContent='三维引擎 three.js 加载失败：请确认同目录 three.min.js 存在，或联网以走 CDN 兜底。';
@@ -363,10 +466,12 @@ var PRESETS = {
   cauliflower: {levels:3, angle:137.508, cones:14, r2l:1.18, i2o:0.60, pal:2, form:'fractal'},
   broccoli:    {levels:3, angle:137.508, cones:7,  r2l:0.68, i2o:0.38, pal:1, form:'fractal'},
   // 直立花盘：锥轴垂直、底面平放平台、锥数少（黄金角平铺的莲蓬/生命之花）
-  upright:     {levels:3, angle:137.508, cones:7, r2l:1.111786, i2o:0.46, pal:4, form:'upright', upTilt:1.0, upBuds:55},
+  upright:     {levels:3, angle:137.508, cones:7, r2l:1.111786, i2o:0.46, pal:4, form:'upright', upTilt:1.0, upBuds:25},
   xmas:        {levels:5, angle:137.508, cones:7, r2l:1.111786, i2o:0.46, pal:4, form:'upright', upTilt:0.0, upBuds:6},
   // 正60面体（截角二十面体 / 足球烯 C60）：每面贴砖式直立花盘
-  bucky:       {levels:3, angle:137.508, cones:7, r2l:1.111786, i2o:0.46, pal:4, form:'poly', upTilt:1.0, upBuds:16}
+  bucky:       {levels:3, angle:137.508, cones:7, r2l:1.111786, i2o:0.46, pal:4, form:'poly', upTilt:1.0, upBuds:25},
+  // 正五边形花盘：单个平放正五边形贴砖；中心圆锥由 pentSolid 开关控制（中实/中空）
+  pent:        {levels:3, angle:137.508, cones:7, r2l:1.111786, i2o:0.46, pal:4, form:'pent', upTilt:1.0, upBuds:25, pentSolid:true}
 };
 var PALETTES = [
   {name:'罗马绿',   hue:[0.22,0.34], sat:[0.46,0.64], light:[0.28,0.55]},
@@ -412,10 +517,13 @@ function intersectionBetweenTwoLines(l1s,l1e,l2s,l2e){
 /* ============ 状态 ============ */
 var S={levels:3,angleDeg:137.508,cones:11,r2l:0.95,i2o:0.43,pal:0,form:'upright',
        /* 直立花盘（蜂窝·垂直平放·Broccoli多级）参数 */
-       upN:7, upSpread:1.0, upTilt:1.0, upBuds:55,   // 蜂窝单元数 / 间距系数(>2留缝) / 子锥倾角(0=垂直) / 每级芽数
-       spiralMode:'golden', spiralDeg:45, upBudsEff:24,  // 底层分布算法 / 对称角度 / 预算自适应后生效芽数
-       autoFill:false, fillK:1.00, fillCount:0,        // 自动填满三角空隙 / 补株相对尺寸(≤1) / 实际补株数
+       upN:7, upSpread:1.0, upTilt:1.0, upBuds:25,   // 蜂窝单元数 / 间距系数(>2留缝) / 子锥倾角(0=垂直) / 每级芽数(默认25)
+       spiralMode:'hex60', spiralDeg:60, upBudsEff:25,  // 底层分布算法(默认六重60°) / 对称角度 / 预算自适应后生效芽数
+       autoFill:false, fillK:1.00, fillCount:0, fillInner:0, fillEdge:0,  // 自动填满 / 补株相对尺寸 / 补株数(内部孔+边缘缺口)
        hexBase:true, hexThick:5, hexOverlap:0.00,     // 红色六边形砖底盘(默认开) / 厚度mm / 与株底重叠高度(默认0)
+       growBase:true, growBaseShape:'round',          // 三种分形塔(romanesco/cauliflower/broccoli)落地底盘 / 形状(round圆形|hex六边形)
+       growBaseMesh:null,                             // 分形塔落地底盘 mesh（普通 Mesh，纳入导出）
+       trunkBase:true, trunkAll:false,                // 第0级连片主体：渲染中央母锥把子锥连成山/树；trunkAll=每级中轴都渲染
        cmap:'hsvarm', fibArms:13, fibTwist:2.6,        // 默认 HSV色环·螺旋臂深浅间隔 / 臂数(8/13/21) / 对数螺旋缠绕紧度
                                                       // 其它可选: viridis/level/hsv/turbo/plasma/height
        spin:false,spiral:false,wire:false,speed:1,prog:1,playing:false,seed:12345,
@@ -424,6 +532,24 @@ var S={levels:3,angleDeg:137.508,cones:11,r2l:0.95,i2o:0.43,pal:0,form:'upright'
        honey:false, boardL:250, boardW:180, boardT:5, brocSize:28,   // mm
        /* 正60面体（截角二十面体）表面贴砖 */
        polyEdge:2.40, polyFaces:null, polyTileMesh:null, polyEdgeLines:null, polyFlowers:0, polyEdges:true,
+       polyPentFill:true,                 // 五边形面：5 个相切点补缝小株（关掉会露出五边形边上的透镜状灰隙）
+       /* 每面花盘密度 LOD（B1）：
+          rich = 贴砖密集(五边 5+1+5缝 / 六边 6+1，共 272 株) —— 面砖贴满但每株分摊锥数少；
+          one  = 单朵精雕(每面 1 株，共 32 株) —— 每株芽数翻 3 倍，花盘轮廓清晰。
+          株数越少 → realCells 越小 → 预算反解出的 budsEff 越大，这是"球面花盘偏粗"的正解。 */
+       polyDens:'rich',
+       /* 正五边形花盘（单个平放五边形贴砖） */
+       pentEdge:5.00, pentSolid:true,   // 五边形边长 / true=6株中实(5环绕+中心) false=5株中空
+       /* 正五边形底层算法：tangent=相切平铺(原) / ifs=Sierpinski五边形IFS / ifs3d=五棱锥花盘山IFS */
+       pentAlgo:'tangent', ifsDepth:2, ifsCenter:true, ifsN:160, pentPyrMesh:null,
+       /* 五棱锥花盘山：面内无缝铺满求解器的参数（见 pentCoverSolve 注释）
+          petal=底盘花瓣环半径(×b)，1.70 是"7 圆盘并集无孔"的临界值（2.0 相切必留 6% 孔）；
+          dr=格点间距/花盘半径，1.44 是真实并集覆盖率 100% 的最小重叠；
+          fill=自相似补缝级数；spin=花盘自转角（相对格点）。 */
+       ifsPetal:1.70, ifsDr:1.44, ifsFill:2, ifsSpin:30, ifsCover:0, ifsAutoMsg:'',
+       _baseRing:0, _pentCover:null,
+       trimApex:true,                   // 从数学底层删除每段分形最顶尖那个突出小圆锥（默认开）
+       cullBottom:true, cullFloor:0.35, culled:0, cullFixed:0,  // 底面暴露处理：ay<0倒挂删除(连子树)；0≤ay<floor近水平扶正(保持覆盖)
        stlSeg:5, cells:[], renderList:[], plateMesh:null};
 
 /* ============ three 场景 ============ */
@@ -556,6 +682,404 @@ function buildTruncatedIcosahedron(edge){
   return faces;
 }
 
+/* 单个平放正五边形（法线 +Y）：供"正五边形花盘"预设贴砖用，几何与截角二十面体的五边形面一致。
+   顶点 0 朝 +Z(w)，使 buildPolyPlacements 的 5 株正好落在 5 个顶点方向。 */
+function buildPentagonFace(edge){
+  var R=edge/(2*Math.sin(Math.PI/5));     // 正五边形外接圆半径 = 0.85065·edge
+  var C=new THREE.Vector3(0,0,0);
+  var n=new THREE.Vector3(0,1,0);         // 外法线朝上（平放）
+  var u=new THREE.Vector3(1,0,0);         // 局部 X
+  var w=new THREE.Vector3().crossVectors(u,n).normalize(); // u×n=(0,0,1)=局部 Z，basis(u,n,w) 右手系
+  var pts=[];
+  for(var k=0;k<5;k++){
+    var a=Math.PI/2+2*Math.PI*k/5;
+    pts.push(C.clone().addScaledVector(u,R*Math.cos(a)).addScaledVector(w,R*Math.sin(a)));
+  }
+  return {type:'pent',pts:pts,center:C,normal:n,u:u,w:w,offset:Math.PI/2};
+}
+
+/* 正五边形花盘专用布局：5/6 株"相切平放"，相邻第一级花盘不重叠（与直立花盘的株间距语义一致）。
+   每株本身是 1+6 底盘锥花盘（由 buildUpright 生成）；这里只给出每株的摆放矩阵。
+   单株花盘占地半径 = Rplant；五边形顶点环半径 ring=2·Rplant → 相邻中心距 2·ring·sin36 ≈ 2.35·Rplant > 2·Rplant，互不相交。 */
+function buildPentagonPlacements(face,H0,r2l,edge,solid){
+  var R0=H0*r2l;                        // 单株花盘局部外径半径（本地坐标 3·bR = R0）
+  /* 真实几何：单株花盘 = 1中心+6环绕共7个底盘锥，环绕半径2bR、锥底bR=R0/3，
+     故最外缘=2bR+bR=R0（正好满 R0）。世界缩放 sc 后真实占地半径=R0·sc（系数=1，无折减）。
+     上一版误用 0.41 折减系数把 sc 放大2.4倍→花盘互相重叠穿模，调试接口也用0.41记录半径 →
+     形成"用错误值既生成又验证"的循环。现去掉折减：sc=rt/R0，相邻中心距=2·ring·sin36=2·rt → 精确相切。*/
+  var rt=0.285*edge;                    // 目标花盘真实半径：外缘 ring+rt=2.701·rt≈0.77·edge，落在五边形内留边
+  var sc=rt/R0;                         // 单株缩放，使真实花盘半径=R0·sc=rt
+  var ring=rt/Math.sin(Math.PI/5);      // 五顶点环半径：相邻株中心距 2·ring·sin36 = 2·rt → 恰好相切不重叠
+  var M0=new THREE.Matrix4().makeBasis(face.u,face.normal,face.w);
+  var out=[];
+  for(var k=0;k<5;k++){
+    var a=face.offset+2*Math.PI*k/5;
+    var pos=face.center.clone().addScaledVector(face.u,ring*Math.cos(a))
+                              .addScaledVector(face.w,ring*Math.sin(a))
+                              .addScaledVector(face.normal,0.02);
+    var m=M0.clone();m.scale(new THREE.Vector3(sc,sc,sc));m.setPosition(pos);
+    out.push({mat:m,gid:k});
+  }
+  if(solid){                            // 中实：中心 1 株偏小（占地 0.7·Rplant，与环绕株留缝）
+    var sm=sc*0.7;
+    var mc=M0.clone();mc.scale(new THREE.Vector3(sm,sm,sm));
+    mc.setPosition(face.center.clone().addScaledVector(face.normal,0.02));
+    out.push({mat:mc,gid:5});
+  }
+  return out;
+}
+
+/* ===== 正五边形 · IFS 底层算法（Sierpinski 五边形 / Dürer 五边形）=====
+   标准构造：整块五边形按 r = 1/(1+φ) = (3−√5)/2 ≈ 0.381966 缩放，朝 5 个顶点做
+   "以该顶点为不动点的同伦映射"（顶点固定）：
+        副本中心 = 母中心 + (1−r)·R·û_k ，副本外接半径 = r·R
+   因为 r = 1/(1+φ)，相邻两个副本正好在母五边形的顶点处相切、互不重叠（Sierpinski 五边形）。
+   第 6 个映射（可选）：同样 r 缩放，放在母中心、相位转 36° → Dürer 五边形的"密实版"，
+   把中心那块空隙也补上（对应文献里 "adding a sixth map in the center rotated by 36°"）。
+   递归 depth 层后，在每个最深副本的**内切圆**上放一株花盘：
+       花盘占地半径 = 0.96 · R_leaf · cos36°   （内切圆 = 外接圆 × cos36°，刚好不越出副本）
+   这就是"两个尺度上的同一个 IFS"：宏观是五边形自相似布株，每株花盘内部再跑自己的
+   Broccoli 锥面螺旋 IFS —— 不是照抄算法，而是把两层自相似叠起来。
+
+   注：文献里的"树形分支 IFS"和"中点位移山脉"属于**外向生长/高度扰动**，硬塞进
+   "平放相切花盘"会破坏几何承诺（花盘底面会离台悬空），故不在此模式内混用。 */
+function buildPentagonIFSPlacements(face,H0,r2l,edge,depth,withCenter){
+  var R0=H0*r2l;
+  var Rp=edge/(2*Math.sin(Math.PI/5));        // 正五边形外接半径 = 0.85065·edge
+  var PHI=(1+Math.sqrt(5))/2;
+  var r=1/(1+PHI);                            // 0.381966…（= (3−√5)/2）
+  var COS36=Math.cos(Math.PI/5);              // 内切/外接
+  var nodes=[{x:0,z:0,R:Rp,rot:face.offset}];
+  for(var d=0;d<depth;d++){
+    var next=[];
+    nodes.forEach(function(p){
+      for(var k=0;k<5;k++){
+        var a=p.rot+2*Math.PI*k/5;
+        next.push({x:p.x+(1-r)*p.R*Math.cos(a),
+                   z:p.z+(1-r)*p.R*Math.sin(a),
+                   R:p.R*r,rot:p.rot});
+      }
+      if(withCenter) next.push({x:p.x,z:p.z,R:p.R*r,rot:p.rot+Math.PI/5});
+    });
+    nodes=next;
+  }
+  var out=[],M0=new THREE.Matrix4().makeBasis(face.u,face.normal,face.w);
+  nodes.forEach(function(p,i){
+    var rt=p.R*COS36*0.96;                    // 落在副本内切圆内，不越界
+    var sc=rt/R0;
+    var m=M0.clone();m.scale(new THREE.Vector3(sc,sc,sc));
+    m.setPosition(face.center.clone()
+        .addScaledVector(face.u,p.x).addScaledVector(face.w,p.z)
+        .addScaledVector(face.normal,0.02));
+    out.push({mat:m,gid:i});
+  });
+  S.ifsInfo={r:r,Rp:Rp,depth:depth,withCenter:!!withCenter,
+             flowers:out.length,rt:(nodes.length?nodes[0].R*COS36*0.96:0)};
+  return out;
+}
+
+/* ===== 正五边形 · IFS 五棱锥「花盘山」（混沌游戏 + 坡面法线布株）=====
+   把文献里三件事揉进同一个几何体，而不是各画各的：
+   ① 山（mountain）：五边形底 + 中心一个尖顶 → 正五棱锥，锥面就是"山坡"（高程场）；
+   ② 五棱锥 IFS（pentaflake）：以 6 个吸引子（5 个底角 + 1 个尖顶）跑混沌游戏
+      p ← s·p + (1−s)·V_k ，s = 1/(1+φ) ≈ 0.381966。点云自带五重自相似团簇，
+      是"山体内部的分形尘埃"，正好当花盘的分布密度函数；
+   ③ 树（tree）：每株花盘不再竖直摆放，而是**沿坡面法线**生长 —— 像山坡上长树，
+      法线 n ∝ (cosθ·H, R, sinθ·H)（用圆锥面的光滑法线，避免棱面处跳变）。
+   把点沿半径投影到"该高度处的坡面"上，于是点云被摊成一层贴合锥面的壳。
+   ⚠️ 不做"中点位移"高度噪声：花盘底面必须落在坡面上，随机抬降会让底面悬空。
+
+   ===== 2026-11-22 · 面内「无缝铺满」求解器（老师：一键调到最优、无缝铺满山包）=====
+   旧版布点用 4 映射混沌游戏取点，为什么必然留灰块（根因，不是参数没调好）：
+     · 混沌游戏的吸引子是"极限上"铺满三角形，有限个点一定成团、团间一定留洞
+       （Poisson 撒点的孔洞概率 e^(−λπr²)，且空洞尺寸无上界）——加大 N 只把洞变小，不会消失；
+     · 更根本的是单个花盘本身就有孔：花盘 = 1 中心锥 + 6 花瓣锥（底半径 b，环半径 2b 相切），
+       7 个圆盘两两相切时，相邻花瓣在 30° 方向留 6 个凹口，最近处只到 0.42·rf
+       —— 也就是"一个花盘自己就漏 6%"，任何摆法都补不上。
+   两条修正（都是几何结论，不是玄学调参）：
+     ① 花瓣环半径收到 petal·b（petal=1.70）：相邻圆盘重叠 ~15%，
+        圆心三角形外接圆 1.70b/√3 = 0.98b < b → 并集自身无孔（实测 petal≤1.80 即可）；
+     ② 三角格点间距 d = dr·rf（dr=1.44）：花盘轮廓是"带齿六边形"，
+        相切平铺 d=√3·rf 时齿槽仍留 4~9%；dr=1.44 时真实并集覆盖率 100%。
+   求解四步（pentCoverSolve）：
+     ① 三角格点撒种（沿底边 / 转 30° 两种取向，取落在面内更多的）；
+     ② 抖动 ≤0.12d（去掉"高尔夫球"式机械感，保留有机感）；
+     ③ 覆盖率栅格（重心坐标采样）+ 距离场：逐点判"7 圆盘真实并集"是否盖住；
+     ④ 自相似补缝：在最大空洞处补一株 0.42~0.90 倍的小花盘（romanesco 的尺度层级），
+        迭代到栅格全覆盖 —— 大花盘之间嵌小花盘，正是罗马花椰菜的真实结构。
+   ⚠️ 只解 1 个坡面，其余 4 个面用同一份 (u,v) 布局 → 严格五重对称（五角星）。 */
+function pentCoverSolve(L1,Cx,Cy,opt){
+  opt=opt||{};
+  var petal=(opt.petal==null?1.70:opt.petal);    // 花瓣环半径（× 底盘锥半径 b），2.0=相切
+  var dr=(opt.dr==null?1.44:opt.dr);             // 三角格点间距 / 花盘外接半径 rf
+  var jitter=(opt.jitter==null?0.12:opt.jitter); // 抖动幅度（× d）
+  var fillN=Math.max(0,Math.min(4,(opt.fill==null?2:opt.fill)));
+  var spin=(opt.spin||0)*Math.PI/180;            // 花盘自转角（相对格点）
+  var spinJit=(opt.spinJit==null?26:opt.spinJit)*Math.PI/180;   // 每株再随机转 ±spinJit（破格点摩尔纹）
+  var N=Math.max(4,Math.round(opt.n||30));
+  var rnd=mulberry32(((opt.seed|0)||12345)+7727);
+  var area=0.5*L1*Cy;
+  var d=Math.sqrt(2*area/(Math.sqrt(3)*N));      // 面积/N 反解三角格点间距
+  var rf=d/dr;                                   // 花盘外接半径（世界单位）
+  var bb=rf/(petal+1);                           // 单个底盘锥底半径（世界单位）
+  var P=[];
+  function insideT(x,y){
+    var wC=y/Cy; if(wC<-1e-9)return false;
+    var wB=(x-wC*Cx)/L1;
+    return (wB>=-1e-9)&&(1-wB-wC>=-1e-9);
+  }
+  /* ① 三角格点：两种取向择优 */
+  var best=null,brot=0;
+  [0,Math.PI/6].forEach(function(rot){
+    var ax=Math.cos(rot),ay=Math.sin(rot),bx=Math.cos(rot+Math.PI/3),by=Math.sin(rot+Math.PI/3);
+    var n=Math.ceil((L1+Cy)/d)+2,out=[];
+    for(var i=-n;i<=n;i++){for(var j=-n;j<=n;j++){
+      var x=i*d*ax+j*d*bx,y=i*d*ay+j*d*by;
+      if(insideT(x,y))out.push([x,y]);
+    }}
+    if(!best||out.length>best.length){best=out;brot=rot;}
+  });
+  /* ② 抖动（抖出界就退回格点，保证花盘中心一定落在坡面上） */
+  best.forEach(function(p){
+    var x=p[0]+(rnd()*2-1)*jitter*d, y=p[1]+(rnd()*2-1)*jitter*d;
+    if(!insideT(x,y)){x=p[0];y=p[1];}
+    P.push({x:x,y:y,r:rf,s:brot+spin+(rnd()*2-1)*spinJit});
+  });
+  var baseN=P.length;
+  if(baseN<3)return {pts:P,cover:0,base:baseN,added:0,rf:rf,d:d,nv:0,petal:petal,dr:dr,total:0};
+  /* ③ 覆盖率栅格：重心坐标均匀采样（含边界），逐点测 7 圆盘真实并集 */
+  var nv=Math.max(24,Math.min(110,Math.round(L1/(0.16*rf))));
+  var rows=nv+1,total=rows*(rows+1)/2;
+  var cxA=new Float32Array(total),cyA=new Float32Array(total);
+  var t0=0;
+  for(var si=0;si<rows;si++){for(var sj=0;sj<rows-si;sj++){
+    var wB=si/nv,wC=sj/nv;
+    cxA[t0]=wB*L1+wC*Cx; cyA[t0]=wC*Cy; t0++;
+  }}
+  /* 单株判据（1 中心盘 + 6 花瓣盘，花瓣环半径 petal·b） */
+  function isOne(q,x,y){
+    var ex=x-q.x,ey=y-q.y;
+    if(ex*ex+ey*ey>q.r*q.r)return false;          // 外接圆预筛
+    var b2=q.r/(petal+1),b2s=b2*b2;
+    if(ex*ex+ey*ey<=b2s)return true;              // 中心盘
+    var ring=petal*b2;
+    for(var s=0;s<6;s++){
+      var a=q.s+s*Math.PI/3;
+      var gx=ex-ring*Math.cos(a),gy=ey-ring*Math.sin(a);
+      if(gx*gx+gy*gy<=b2s)return true;
+    }
+    return false;
+  }
+  /* 覆盖率位图：初始用"逐株标记"（O(株数×采样点) 的纯算术，比哈希查表快一个量级），
+     之后每补一株只重测它半径内的点 → 一键搜索 14 组参数从 1.4s 降到几十毫秒 */
+  var covA=new Uint8Array(total), covN=0;
+  function coverAll(){
+    covA.fill(0); covN=0;
+    for(var i=0;i<P.length;i++){
+      var q=P[i], rr=q.r*q.r;
+      for(var t=0;t<total;t++){
+        if(covA[t])continue;
+        var dx=cxA[t]-q.x, dy=cyA[t]-q.y;
+        if(dx*dx+dy*dy>rr)continue;
+        if(isOne(q,cxA[t],cyA[t])){covA[t]=1;covN++;}
+      }
+    }
+  }
+  coverAll();
+  function coverNear(q){
+    var rr=q.r*1.04; rr*=rr;
+    for(var t=0;t<total;t++){
+      if(covA[t])continue;
+      var dx=cxA[t]-q.x, dy=cyA[t]-q.y;
+      if(dx*dx+dy*dy>rr)continue;
+      if(isOne(q,cxA[t],cyA[t])){covA[t]=1;covN++;}
+    }
+  }
+  var added=0;
+  /* ④ 自相似补缝：BFS 距离场 → 最大空洞中心 → 补一株缩小的花盘 */
+  var gstep=L1/nv, D=new Int32Array(rows*rows), Q=new Int32Array(rows*rows*2);
+  function holeMax(){
+    D.fill(-1);
+    var qh=0,qt=0,bestD=0,bestId=-1;
+    for(var i=0;i<rows;i++){for(var j=0;j<rows-i;j++){
+      if(!covA[i*rows-i*(i-1)/2+j])continue;
+      D[i*rows+j]=0; Q[qt++]=i*rows+j;
+    }}
+    while(qh<qt){
+      var id=Q[qh++],ci=(id/rows)|0,cj=id%rows,dv=D[id];
+      for(var k=0;k<6;k++){
+        var a=ci+[1,-1,0,0,1,-1][k], b=cj+[0,0,1,-1,-1,1][k];
+        if(a<0||b<0||a+b>nv)continue;
+        var nid=a*rows+b;
+        if(D[nid]!==-1)continue;
+        D[nid]=dv+1; Q[qt++]=nid;
+        if(dv+1>bestD){bestD=dv+1;bestId=nid;}
+      }
+    }
+    return [bestD,bestId];
+  }
+  for(var round=0;round<fillN;round++){
+    if(covN>=total)break;
+    var guard=0,cap=Math.ceil(N*0.9);
+    while(guard++<cap){
+      var hm=holeMax();
+      if(hm[1]<0||hm[0]*gstep<0.09*rf)break;      // 只剩级缝，收工
+      var ci=(hm[1]/rows)|0, cj=hm[1]%rows;
+      var idx=ci*rows-ci*(ci-1)/2+cj;
+      var rNew=Math.min(rf*0.92,Math.max(rf*0.40,hm[0]*gstep*1.55));
+      var np={x:cxA[idx],y:cyA[idx],r:rNew,
+              s:brot+spin+(rnd()*2-1)*spinJit,gen:round+2};
+      P.push(np); coverNear(np); added++;
+      if(covN>=total)break;
+    }
+    if(added>N*1.6)break;
+  }
+  return {pts:P,cover:covN/total,base:baseN,added:added,rf:rf,d:d,nv:nv,
+          petal:petal,dr:dr,total:total};
+}
+
+/* ===== 正五边形 · 五棱锥布株（五重对称 + 面内无缝铺满） ===== */
+function buildPentagonPyramidPlacements(face,H0,r2l,edge,N){
+  var R0=H0*r2l;
+  var Rp=edge/(2*Math.sin(Math.PI/5));          // 五边形外接半径
+  var Hp=Rp*0.62;                               // 山高（坡角约 32°）
+  var petal=(S.ifsPetal==null?1.70:S.ifsPetal);
+  var dr=(S.ifsDr==null?1.44:S.ifsDr);
+  var fill=(S.ifsFill==null?2:S.ifsFill);
+  var spinDeg=(S.ifsSpin==null?30:S.ifsSpin);
+  var nPer=Math.max(4,Math.round((N||80)/5));
+  /* 面基准三角形（等长可直接用长度算 2D 坐标）：A=底顶点，B=下一底顶点，C=尖顶 */
+  var L1=edge, L2=Math.hypot(Rp,Hp), Cx=L1/2;
+  var Cy=Math.sqrt(Math.max(1e-9,L2*L2-Cx*Cx));
+  /* 缓存：拖动滑块会反复重建，同一组参数不重复求解（求解约 10~30ms） */
+  var key=[L1.toFixed(4),L2.toFixed(4),nPer,petal,dr,fill,spinDeg,S.seed].join('|');
+  if(!S._pentCover||S._pentCover.key!==key){
+    S._pentCover={key:key,sol:pentCoverSolve(L1,Cx,Cy,{n:nPer,petal:petal,dr:dr,
+                    fill:fill,spin:spinDeg,seed:S.seed})};
+  }
+  var sol=S._pentCover.sol, pts=sol.pts;
+  /* 单株花盘在本地坐标的外接半径 = (petal+1)·bR，bR=R0/3 → 世界半径 rf 需缩放 sc */
+  var sc=sol.rf/((petal+1)*R0/3);
+  /* 五棱锥的 5 个底顶点 / 尖顶（face 局部坐标 → 世界） */
+  function toW(x,y,z){
+    return new THREE.Vector3().copy(face.center)
+      .addScaledVector(face.u,x).addScaledVector(face.normal,y).addScaledVector(face.w,z);
+  }
+  var base=[],k;
+  for(k=0;k<5;k++){
+    var a=face.offset+2*Math.PI*k/5;
+    base.push(toW(Math.cos(a)*Rp,0,Math.sin(a)*Rp));
+  }
+  var apex=toW(0,Hp,0);
+  var out=[],gid=0,vY=new THREE.Vector3(0,1,0);
+  var spinR=spinDeg*Math.PI/180, cs=Math.cos(spinR), sn=Math.sin(spinR);
+  for(var f=0;f<5;f++){
+    var Af=base[f], Bf=base[(f+1)%5];
+    var e1=Bf.clone().sub(Af), e1L=e1.length()||1; e1.multiplyScalar(1/e1L);
+    var tv=apex.clone().sub(Af), pr=tv.dot(e1);
+    var e2=tv.clone().addScaledVector(e1,-pr);
+    var e2L=e2.length()||1; e2.multiplyScalar(1/e2L);
+    var nrm=new THREE.Vector3().crossVectors(e1,e2).normalize();   // 坡面法线
+    var cen=Af.clone().add(Bf).add(apex).multiplyScalar(1/3);
+    if(nrm.dot(cen.clone().addScaledVector(vY,-Hp*0.25))<0)nrm.multiplyScalar(-1);  // 朝外
+    /* 花盘局部坐标：X=坡面底边方向（与 2D 求解的 u 轴一致）、Y=坡面法线、Z=X×Y */
+    var zAx=new THREE.Vector3().crossVectors(e1,nrm).normalize();
+    var xAx=e1.clone().multiplyScalar(cs).addScaledVector(zAx,sn);   // 绕法线自转 spinR
+    var zAx2=zAx.clone().multiplyScalar(cs).addScaledVector(e1,-sn);
+    var M0=new THREE.Matrix4().makeBasis(xAx,nrm,zAx2);
+    for(var t=0;t<pts.length;t++){
+      var p=pts[t];
+      var pos=Af.clone().addScaledVector(e1,p.x).addScaledVector(e2,p.y)
+                 .addScaledVector(nrm,0.02);
+      /* 逐株尺度：补缝小花盘按自己的半径缩（自相似尺度层级：大花盘之间嵌 0.4~0.9 倍小花盘） */
+      var scp=sc*((p.r!=null&&sol.rf>1e-9)?(p.r/sol.rf):1);
+      var m=M0.clone();
+      m.scale(new THREE.Vector3(scp,scp,scp));
+      m.setPosition(pos);
+      out.push({mat:m,gid:gid++});
+    }
+  }
+  S.ifsInfo={mode:'ifs3d',perFace:pts.length,flowers:out.length,cover:sol.cover,
+             base:sol.base,added:sol.added,rf:sol.rf,d:sol.d,petal:petal,dr:dr,spin:spinDeg,
+             nv:sol.nv,total:sol.total};
+  return out;
+}
+
+/* ===== 一键最优：在当前 N 下搜索（花瓣环 × 间距比 × 相位），
+   取"第一个达到全覆盖、且补缝不超过基准 55%"的组合 —— 即最轻量的无缝解。
+   搜索顺序按"花形最像原版"排：花瓣环 1.85 → 1.58（越收越像密实花球），
+   间距比 1.52 → 1.44（重叠越少越清爽）。命中即停，不做无意义的暴力枚举。
+   若当前 N 太小（花盘太大、一张面放不下几株）仍达不到 99%，自动把 N 提高到 1.35 倍再解一次。 */
+function pentAutoTune(){
+  var edge=S.pentEdge||5.0;
+  var Rp=edge/(2*Math.sin(Math.PI/5));
+  var L1=edge, L2=Math.hypot(Rp,Rp*0.62), Cx=L1/2;
+  var Cy=Math.sqrt(Math.max(1e-9,L2*L2-Cx*Cx));
+  var pets=[1.85,1.75,1.66,1.58], drs=[1.52,1.46,1.40], spins=[30,15,0];
+  var target=0.9995, tries=0;
+  function search(N){
+    var nPer=Math.max(4,Math.round(N/5)), best=null, hit=null;
+    outer:
+    for(var pi=0;pi<pets.length;pi++){
+      for(var di=0;di<drs.length;di++){
+        for(var si=0;si<spins.length;si++){
+          tries++;
+          var sol=pentCoverSolve(L1,Cx,Cy,{n:nPer,petal:pets[pi],dr:drs[di],spin:spins[si],
+                                           fill:Math.max(1,S.ifsFill==null?2:S.ifsFill),seed:S.seed});
+          var rec={petal:pets[pi],dr:drs[di],spin:spins[si],sol:sol,N:N};
+          if(!best||sol.cover>best.sol.cover||
+             (Math.abs(sol.cover-best.sol.cover)<1e-9&&sol.added<best.sol.added))best=rec;
+          if(sol.cover>=target&&sol.added<=sol.base*0.55){hit=rec;break outer;}
+        }
+      }
+    }
+    return hit||best;
+  }
+  var pick=search(Math.max(20,Math.round(S.ifsN||80)));
+  if(pick.sol.cover<0.99){                      // 兜底：加大株数再解一次
+    var pick2=search(Math.min(200,Math.round(pick.N*1.35)));
+    if(pick2.sol.cover>pick.sol.cover)pick=pick2;
+  }
+  S.ifsPetal=pick.petal; S.ifsDr=pick.dr; S.ifsSpin=pick.spin;
+  S.ifsFill=Math.max(1,pick.sol.added>0?2:(S.ifsFill==null?2:S.ifsFill));
+  S.ifsN=pick.N;
+  S._pentCover=null;
+  var covTxt=(pick.sol.cover*100).toFixed(2);
+  S.ifsAutoMsg='<b style="color:'+(pick.sol.cover>=0.999?'#1b8a3a':'#b3541e')+'">✨ 最优解已应用：覆盖率 '+covTxt+'%</b><br>'+
+    '花盘 <b>5 × '+pick.sol.pts.length+'</b> 株（基准 '+pick.sol.base+' + 补缝 '+pick.sol.added+'）｜ '+
+    '花瓣环 <b>'+pick.petal.toFixed(2)+'b</b> ｜ 间距 <b>'+pick.dr.toFixed(2)+'·rf</b> ｜ 相位 '+pick.spin+'° ｜ '+
+    '栅格 '+pick.sol.total+' 点 · 搜索 '+tries+' 组<br>'+
+    '<span style="color:#5a6672">补缝小花盘是 romanesco 的尺度层级：大的先铺、洞里嵌小的，不是撒随机点。</span>';
+  if($('ifsN')){$('ifsN').value=pick.N;$('vIfsN').textContent=pick.N;}
+  if($('ifsFill')){$('ifsFill').value=S.ifsFill;$('vIfsFill').textContent=S.ifsFill;}
+  syncPentUI();
+  return S.ifsAutoMsg;
+}
+
+/* 正五棱锥实体（"山体"）：5 个侧面 + 底面，供 ifs3d 当坡面底衬，
+   否则花盘之间会直接透出下面那块平的灰底砖，读不出"山"。 */
+function buildPyramidGeometry(face,Rp,Hp){
+  var arr=[];
+  function P(x,y,z){
+    return new THREE.Vector3().copy(face.center)
+      .addScaledVector(face.u,x).addScaledVector(face.normal,y).addScaledVector(face.w,z);
+  }
+  var base=[];
+  for(var k=0;k<5;k++){
+    var a=face.offset+2*Math.PI*k/5;
+    base.push(P(Math.cos(a)*Rp,0,Math.sin(a)*Rp));
+  }
+  var apex=P(0,Hp,0);
+  function tri(a,b,c){arr.push(a.x,a.y,a.z,b.x,b.y,b.z,c.x,c.y,c.z);}
+  for(var i=0;i<5;i++){tri(apex,base[i],base[(i+1)%5]);}   // 侧面
+  var C=P(0,0,0);
+  for(var j=0;j<5;j++){tri(C,base[j],base[(j+1)%5]);}      // 底面
+  var g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));
+  g.computeVertexNormals();
+  return g;
+}
+
 /* 每个面一块多边形底砖：顶面与多面体面严格共边，向内挤出厚度 → 32 块严丝合缝 */
 function buildPolyTileGeometry(faces,thick){
   var arr=[];
@@ -592,20 +1116,68 @@ function buildPolyEdgeLines(faces,lift){
   return g;
 }
 
-/* 正60面体的每面贴砖布局：5边形=5株中空；6边形=6株+偏小中心株 */
-function buildPolyPlacements(faces,H0,r2l,edge){
-  var unitR=H0*r2l*0.44;                 // 单株花盘底面半径（场景单位，与平面蜂窝一致）
-  /* 贴满整面的几何推导（r=花盘半径, ring=花盘中心到面心距离）：
-     正六边形 外接R=1.0e / 内切a=0.866e；正五边形 外接R=0.851e / 内切a=0.688e。
-     相切布局(ring=2r)只能在一点相切，边中点方向必然漏灰底 → 改为花盘适度重叠。
-     六边形: ring+r≥R(顶点), 0.866·ring+√(r²-(0.5·ring)²)≥a(边中点), rMid≥ring-r(填中心洞)。
-     五边形: ring+r≥0.851e, 0.809·ring+√(r²-(0.588·ring)²)≥0.688e；中心留小洞(5中空)。 */
-  var rHex=0.48*edge;                    // 六边形面花盘半径：与 ring 配合使外缘≈顶点(不越界), 内缘填中心洞
-  var ringHex=0.54*edge;                 // 六边形 6 株环绕半径：相邻花盘重叠、外缘 ring+r≈1.02e
-  var rMid=0.34*edge;                    // 六边形中心株（偏小，填实中心洞 ring-r≈0.06e）
-  var rPent=0.42*edge;                   // 五边形面花盘半径：外缘 ring+r≈0.87e≈外接0.851e
-  var ringPent=0.45*edge;                // 五边形 5 株环绕半径（重叠贴面，中心留中空）
-  var sHex=rHex/unitR,sPent=rPent/unitR,sMid=rMid/unitR;
+/* 正60面体的每面贴砖布局
+   ===== 尺度基准修正（旧版"贴片有问题"的根因）=====
+   平面蜂窝路径是 rootPl.scale=scale*kf（scale=unitR/R0=0.44），而多面体路径是 rootPl.matrix=p.mat，
+   矩阵缩放**直接**成为世界尺寸、不再乘 0.44。旧代码沿用 sc=r/unitR（unitR=0.44·R0）→
+   每株实际占地半径 = R0·sc = r/0.44 = 2.27r，被放大 2.27 倍 → 全球叠成十几层、
+   32 个面的对称花盘糊成一片均匀锥堆，且五边形面被放大的花盘"盖住却又露边"。
+   现改为 sc = 目标占地半径 / R0（R0=H0·r2l = 单株花盘局部外径），尺度与注释一致。
+
+   ===== 五边形面：套用"正五边形·相切平放花盘"预设的同一套数学 =====
+     5 株环绕彼此相切：ring = r/sin36，相邻中心距 2·ring·sin36 = 2r → 精确相切不重叠；
+     中心株取 0.95r（与五株轻叠，吃掉"三圆互切必留"的 5 个曲边三角孔）；
+     相切点 ring·cos36 = 1.376r 到五边形内切圆 0.688e 之间还有一条沿 36°+72k 展开的
+     透镜状缝隙 → 每条缝中间补 1 株单底盘锥小株（沿用平面"三角孔补小株"的语义）。
+     r 取 0.52e：外缘 ring+r=1.40e 越过顶点(0.851e)，把三面交会的顶点小孔也盖住。
+     实测(面砖染品红)露砖只剩几处发丝级细缝。
+
+   ===== 六边形面：6 株环绕 + 中心小株 =====
+     双约束：外缘 ring+r ≥ 顶点 1.0e；边中点 0.866·ring+√(r²−(ring/2)²) ≥ 内切 0.866e。
+     r=0.72e / ring=0.66e / 中心株=0.34e。 */
+function buildPolyPlacements(faces,H0,r2l,edge,pentSolid){
+  var R0=H0*r2l;                          // 单株花盘局部外径半径（矩阵缩放基准）
+  /* ===== LOD「one」：每面 1 株单朵精雕 =====
+     花盘轮廓本身是正六边形（外接 R0·sc、内切 0.866·R0·sc）。把它当成"整面贴片"：
+       六边形面 内切 0.866e / 外接 1.0e → 花盘外接半径取 1.0e：外接正好顶到六个顶点，
+                 内切 0.866e 正好贴住六条边 → 不越界也不留缝；
+       五边形面 内切 0.688e / 外接 0.851e → 取 0.98e：略过五边形顶点，顺带盖住三面交会的小孔。
+     株数从 272 降到 32，realCells 也随之降到 224 → 预算反解出的每株芽数从 9 涨到 27，
+     这就是"球面花盘偏粗"的正解（锥数总量不变，只是把预算集中给更少的株）。 */
+  if(S.polyDens==='one'){
+    var out1=[];
+    faces.forEach(function(f,fi){
+      var M0=new THREE.Matrix4().makeBasis(f.u,f.normal,f.w);
+      var isHex=f.type==='hex';
+      var r=(isHex?1.00:0.98)*edge, sc=r/R0;
+      var m=M0.clone();m.scale(new THREE.Vector3(sc,sc,sc));
+      m.setPosition(f.center.clone().addScaledVector(f.normal,0.02));
+      out1.push({mat:m,gid:fi*13});
+    });
+    S.tileInfo={edge:edge,R0:R0,dens:'one',
+      hex:{r:edge,ring:0,rMid:0,foot:edge},
+      pent:{r:0.98*edge,ring:0,rc:0,tPoint:0,rEdge:0,foot:0.98*edge},
+      scMax:edge/R0,plants:out1.length};
+    return out1;
+  }
+  var SIN36=Math.sin(Math.PI/5),COS36=Math.cos(Math.PI/5);
+  var TP=S.tileP||{};
+  var rHex=(TP.hexR||0.72)*edge, ringHex=(TP.hexRing||0.66)*edge, rMid=(TP.hexMid||0.34)*edge;
+  var rPent=(TP.pentR||0.52)*edge;
+  var ringPent=rPent/SIN36;               // 相切环半径：2·ring·sin36 = 2r
+  /* 中心株：数学上"与五株同时相切"的半径是 r·(1/sin36−1)=0.701r，但三圆互切必留
+     5 个曲边三角孔（实测露灰）。这里取 0.95r 让中心株与五株**轻微重叠**，把内圈锥孔
+     直接吃掉——与外圈"相切不重叠"的诉求不冲突（相切只约束那 5 株之间）。 */
+  var rcPent=rPent*0.95;
+  var tPoint=ringPent*COS36;              // 相切点半径 1.376r
+  var inPent=0.688*edge;                  // 五边形内切圆 = edge/(2·tan36)
+  /* 相切缝的实际范围：内端在中心株边缘(0.95rPent)，外端在五边形边线(0.688e)——
+     这条透镜缝沿 36°+72k 方向展开。补缝小锥直径取缝长的一半多点、中心落在缝中点。 */
+  var gapIn=rcPent*1.0;
+  var gapD=Math.max(0.05*edge,inPent-gapIn);
+  var rEdge=gapD*0.62;                                 // 补缝株单底盘锥半径
+  var rGapPos=(gapIn+inPent)*0.5;                      // 补缝株中心：缝隙中点
+  var sHex=rHex/R0, sMid=rMid/R0, sPent=rPent/R0, sC=rcPent/R0, sE=(rEdge*3)/R0;
   var out=[];
   faces.forEach(function(f,fi){
     var M0=new THREE.Matrix4().makeBasis(f.u,f.normal,f.w);
@@ -613,40 +1185,89 @@ function buildPolyPlacements(faces,H0,r2l,edge){
     var cnt=isHex?6:5;
     var ring=isHex?ringHex:ringPent;
     var sc=isHex?sHex:sPent;
+    function put(s,k,mat4,pos,extra){
+      var m=mat4.clone();m.scale(new THREE.Vector3(s,s,s));m.setPosition(pos);
+      var o={mat:m,gid:fi*13+k};if(extra)for(var q in extra)o[q]=extra[q];
+      out.push(o);
+    }
     for(var k=0;k<cnt;k++){
       var a=f.offset+2*Math.PI*k/cnt;
-      var pos=f.center.clone().addScaledVector(f.u,ring*Math.cos(a))
-                            .addScaledVector(f.w,ring*Math.sin(a))
-                            .addScaledVector(f.normal,0.02);
-      var m=M0.clone();m.scale(new THREE.Vector3(sc,sc,sc));m.setPosition(pos);
-      out.push({mat:m,gid:fi*7+k});
+      put(sc,k,M0,f.center.clone().addScaledVector(f.u,ring*Math.cos(a))
+                                .addScaledVector(f.w,ring*Math.sin(a))
+                                .addScaledVector(f.normal,0.02));
     }
-    if(isHex){                            // 6 中实：中心一株明显偏小
-      var mc=M0.clone();mc.scale(new THREE.Vector3(sMid,sMid,sMid));
-      mc.setPosition(f.center.clone().addScaledVector(f.normal,0.02));
-      out.push({mat:mc,gid:fi*7+6});
+    if(isHex){                             // 六边形：中心小株填中心孔
+      put(sMid,6,M0,f.center.clone().addScaledVector(f.normal,0.02));
+    }else{
+      if(S.polyPentFill!==false){          // 五边形：5 个相切点补缝（单底盘锥小株）
+        for(var k2=0;k2<5;k2++){
+          var a2=f.offset+Math.PI/5+2*Math.PI*k2/5;
+          put(sE,7+k2,M0,f.center.clone().addScaledVector(f.u,rGapPos*Math.cos(a2))
+                                   .addScaledVector(f.w,rGapPos*Math.sin(a2))
+                                   .addScaledVector(f.normal,0.02),{hole:true,gap:true});
+        }
+      }
+      if(pentSolid!==false){               // 中心株（与五株相切）→ 不留中空
+        put(sC,6,M0,f.center.clone().addScaledVector(f.normal,0.02));
+      }
     }
   });
+  S.tileInfo={edge:edge,R0:R0,dens:'rich',
+    hex:{r:rHex,ring:ringHex,rMid:rMid,foot:rHex},
+    pent:{r:rPent,ring:ringPent,rc:rcPent,tPoint:tPoint,rEdge:rEdge,foot:rPent},
+    scMax:rHex/R0,plants:out.length};
   return out;
 }
 
-function buildFractal(keepCam){
+/* ---------- 构建调度（拖动手感） ----------
+   实测：bucky levels=4 同步重建 3305ms、切预设 1230ms；滑块 input 每次都全量重建
+   → 拖动时主线程被占死，界面卡成 PPT。
+   策略：input（拖动中）→ 90ms 防抖 + 预算降到 22%，轮廓秒出；
+        change（松手/勾选/按钮）→ 立即全精度重建。
+   低精度只削「锥数预算」，不动任何几何参数，所以轮廓与最终结果完全一致。 */
+var _bTimer=null,_bLowNext=false;
+function scheduleBuild(low){
+  _bLowNext=!!low;
+  if(_bTimer){clearTimeout(_bTimer);_bTimer=null;}
+  if(low){
+    _bTimer=setTimeout(function(){_bTimer=null;buildFractal(true,true);},90);
+  }else{
+    buildFractal(true,false);
+  }
+}
+function rebLow(){scheduleBuild(true);}    // 滑块拖动中（input）
+function rebNow(){scheduleBuild(false);}   // 松手 / 勾选 / 点按钮（change/click）
+
+function buildFractal(keepCam,lowQ){
   while(root.children.length){
     var o=root.children[0];root.remove(o);
     if(o.geometry)o.geometry.dispose();
     if(o.material){if(o.material.length)o.material.forEach(function(m){m.dispose();});else o.material.dispose();}
   }
   S.leaves=[];
+  S._triCache=null;                    // 几何已重建 → 导出三角表缓存作废
   if(S.polyTileMesh){S.polyTileMesh.geometry.dispose();S.polyTileMesh.material.dispose();S.polyTileMesh=null;}
   if(S.polyEdgeLines){S.polyEdgeLines.geometry.dispose();S.polyEdgeLines.material.dispose();S.polyEdgeLines=null;}
+  if(S.pentPyrMesh){S.pentPyrMesh.geometry.dispose();S.pentPyrMesh.material.dispose();S.pentPyrMesh=null;}
 
   var alpha=S.angleDeg*Math.PI/180;
   var rnd=mulberry32(S.seed);
   var pal=PALETTES[S.pal];
   var H0=S.altitude;
-  var MAX=120000;  // 实例上限保护；缝隙靠几何布局解决，不靠堆锥数
+  /* 实例上限保护。正60面体/正五边形有 272 株×7 底盘锥=1904 个底盘锥，
+     要让每株表面密实需要十几万锥，旧的 12 万上限会在中途硬截断 →
+     父锥已渲染、子锥没长 → 露出整片灰色面砖（levels=4 的灰底就是这个）。
+     芽数本身由 BUDGET 反解保证不触顶；高 levels 的子树代价按 b^(lv-1) 指数增长，
+     故上限按层数分档放宽，避免 lv=5 被压到 b=2（表面退化成一簇大锥）。 */
+  var _lvNow=Math.max(1,Math.round(S.levels));
+  var MAX=(S.form==='poly'||S.form==='pent')?(_lvNow<=3?200000:340000):120000;
+  /* 低精度预览：拖动滑块时只把「锥数预算」降到 22%，几何参数一律不动。
+     效果是「芽变稀疏的轮廓」，松手后立刻按全预算重建 → 不会出现"拖动看不到东西"。
+     S._lowQ 供导出前判断是否需要补一次全精度，避免误导出低精度模型。 */
+  S._lowQ=!!lowQ;
+  if(lowQ)MAX=Math.max(4,Math.round(MAX*0.22));
   var rootObj=new THREE.Object3D();
-  var nodeCount=0,leafData=[];
+  var nodeCount=0,leafData=[],leafIdSeq=0;   // leafIdSeq: 叶锥唯一id，供"底面暴露删除"建立父子链
 
   // 单位锥：底 y=0、尖 y=1、底半径 1（尖朝 +Y）
   var geo=new THREE.ConeGeometry(1,1,10,1,false);
@@ -658,14 +1279,14 @@ function buildFractal(keepCam){
   function buildUpright(parent,placements){
     var need=Math.max(1,Math.round(S.upN||7));
     var lv=Math.max(1,Math.round(S.levels));
-    var buds=Math.max(8,Math.round(S.upBuds||24));     // 每层芽数≈对数螺旋采样点(源头200π的近似)
+    var buds=Math.max(8,Math.round(S.upBuds||25));     // 每层芽数≈对数螺旋采样点(源头200π的近似)
     var alpha=S.angleDeg*Math.PI/180;                  // 黄金角(螺旋相位)
     var unitR=H0*S.r2l*0.44;
     var d=2*unitR*(S.upSpread||1.8);
     var scale=unitR/(H0*S.r2l);
 
     var pts;
-    S.fillCount=0;
+    S.fillCount=0;S.fillInner=0;S.fillEdge=0;
     if(placements){                               // 正60面体：每个面的花盘由预计算的空间矩阵摆放
       pts=placements;
       S.polyFlowers=pts.length;
@@ -683,39 +1304,58 @@ function buildFractal(keepCam){
     }
     pts=pts.slice(0,need);
 
-    /* ===== 自动填满 = 三角孔洞补小株（不是外圈加花盘）=====
-       一株花盘 = 1中心+6环绕 共 7 小株；花盘中心阵在间距 d 的三角格点上。
-       相邻三株花盘两两相切，中间留一个等边三角形白色空隙。
-       枚举每个主株周围 6 对相邻方向，若三角形三顶点都在主株集合中 → 该三角是
-       内部封闭孔洞，在其重心放 1 株缩小的 Broccoli 小株（单锥），把白色空隙补上。
-       主株数量与外轮廓完全不变：upN=7 → 6 个孔；upN=19 → 24 个孔；upN=37 → 54 个孔。 */
+    /* ===== 自动填满 = 格点三角形重心补小株（数学底层，不是外圈加花盘）=====
+       一株花盘 = 1中心+6环绕 共 7 小株；花盘中心阵 = 间距 d 的三角格点(hex lattice)。
+       格点的基本胞是"等边三角形"，边长恰好 d（故三角形任意两顶点必是一对相切花盘）。
+       全部基本胞 = 每个格点周围 6 个 (nbr[i], nbr[i+1]) 组合，逐个按"占位顶点数 occ"分类：
+
+         occ=3  三个顶点都长着花盘 → 三圆互切围出的内部封闭白色三角孔
+                 → 重心(三顶点算术平均，即外接圆心=内切圆圆心)放 1 株缩小小株
+         occ=2  只有两个顶点长花盘 → 这两株相切，第三顶点空缺 = 轮廓边缘的"外开缺口"
+                 → 同样在重心补 1 株：重心距两株各 d/√3≈0.577d，正好落在缺口里，
+                   补上后外轮廓从"锯齿波浪"变得连续(这才是边缘 6 个缺口的正确坐标)
+         occ≤1 没有一对相切花盘，不存在气隙，跳过
+
+       旧版只做 occ=3，于是只补了靠中心的孔，边缘红箭头那 6 个缺口全被跳过。
+       计数（三角格点环 0..n-1，共 1+3n(n-1) 株）：occ=3 → 6(n-1)²，occ=2 → 6(n-1)。
+         upN=7  → 6 + 6  = 12 株（老师要求的 12 株）
+         upN=19 → 24 + 12 = 36 株
+         upN=37 → 54 + 18 = 72 株
+       主株数量与外轮廓不变，只在既有白隙里塞小株。 */
     if(S.autoFill&&pts.length>=3){
       var SQ3=Math.sqrt(3);
       var pkey=function(x,z){return Math.round(x/d*1000)+'_'+Math.round(z/d*1000);};
       var mainSet={};pts.forEach(function(p){mainSet[pkey(p.x,p.z)]=1;});
-      // 三角格点 6 个相邻方向（basis e_q=(d,0), e_r=(d/2,d√3/2)）
+      // 三角格点 6 个相邻方向（basis e_q=(d,0), e_r=(d/2,d√3/2)），相邻方向夹角 60°
       var nbr=[[d,0],[d/2,d*SQ3/2],[-d/2,d*SQ3/2],[-d,0],[-d/2,-d*SQ3/2],[d/2,-d*SQ3/2]];
-      var seen={},fills=[];
+      var seen={},fills=[],nIn=0,nEdge=0;
       pts.forEach(function(p){
         for(var i=0;i<6;i++){
           var a=nbr[i],b=nbr[(i+1)%6];
           var q={x:p.x+a[0],z:p.z+a[1]},r={x:p.x+b[0],z:p.z+b[1]};
-          if(!mainSet[pkey(q.x,q.z)]||!mainSet[pkey(r.x,r.z)])continue;  // 缺顶点=外缘开孔，不补
+          var occ=1+(mainSet[pkey(q.x,q.z)]?1:0)+(mainSet[pkey(r.x,r.z)]?1:0);
+          if(occ<2)continue;                       // 无一对相切花盘 → 无气隙
           var cx=(p.x+q.x+r.x)/3,cz=(p.z+q.z+r.z)/3;
-          var ck=pkey(cx,cz);if(seen[ck])continue;seen[ck]=1;             // 同一三角去重
-          fills.push({x:cx,z:cz,hole:true,seq:i});
+          var ck=pkey(cx,cz);if(seen[ck])continue;seen[ck]=1;   // 同一三角被 3 个顶点各枚举一次，按重心去重
+          if(occ===3)nIn++;else nEdge++;
+          fills.push({x:cx,z:cz,hole:true,edge:(occ===2),seq:i});
         }
       });
       fills.forEach(function(f){pts.push(f);});
       S.fillCount=fills.length;
-    }
+      S.fillInner=nIn;S.fillEdge=nEdge;
+    }else{S.fillInner=0;S.fillEdge=0;}
     }
 
     /* ===== 单株底盘 = 1中心 + 6环绕 的六边形蜂窝（生命之花） =====
        7 个底盘锥两两相切：中心 (0,0)，环绕半径 = 2·bR，整体外径 = 3·bR = R0 */
     var R0=H0*S.r2l;                       // 单株原底面半径(局部)
     var bR=R0/3;                           // 底盘单元底半径 → 3·bR = R0 恰好铺满
-    var ringR=2*bR;                        // 环绕单元中心半径(相邻相切)
+    /* 花瓣环半径倍数：默认 2 → 7 个底盘锥两两相切（花神图案）。
+       ifs3d（五棱锥花盘山）用 S._baseRing=petal<2 把花瓣收进来，使花盘并集自身无孔
+       （相切时相邻花瓣在 30° 留 6 个凹口，最近只到 0.42·rf，是"满山灰点"的根因）。 */
+    var ringK=(S._baseRing>0?S._baseRing:2);
+    var ringR=ringK*bR;                    // 环绕单元中心半径（2 → 相邻相切；1.7 → 重叠无孔）
     var bH=H0*0.50;                        // 底盘锥高
     var baseCells=[{x:0,z:0}];
     for(var h=0;h<6;h++){
@@ -726,7 +1366,21 @@ function buildFractal(keepCam){
     /* ===== 预算规划：自适应每级芽数，保证每棵子树完整生成（杜绝底盘外露 bug） =====
        原来 levels=5 理论锥数 ≈ 70万 >> MAX，递归中途硬截断 → 父锥已渲染、子锥没长 → 露出大圆锥面。
        这里反解在预算内可完整生成的最大芽数：每底盘锥数 = 1+b+...+b^(lv-1) */
-    var BUDGET=80000;                                   // 完整子树预算：层数修正后按 lv 计代价，留余量避免截断
+    /* 正60面体/正五边形：272 株 × 7 底盘锥 = 1904 个底盘锥，是平面蜂窝(25 株)的 11 倍。
+       旧的 BUDGET=80000 摊到每底盘锥只剩 42 锥：lv=2 时 budsEff=16 尚可，lv=3 时
+       treeCost=1+b+b² 直接把它压到 **6** ——花盘表面只剩 6 个芽，底盘大锥的锥面
+       几乎全裸（面砖染品红验证：品红几乎不可见，浅色是光滑锥面被照亮，不是砖），
+       肉眼看上去就像"五边形面有缝隙"。
+
+       ==== 自适应反解（老师要求"自动调参解决平铺"）====
+       芽数不能写死下限（曾写 minBuds=8）：lv=4 时每底盘锥要 1+8+64+512=585 个锥，
+       1904×585≈110 万 ≫ 实例上限 → nodeCount 触顶后**剩余的株整片不再生成**，
+       球面直接露出整块灰色面砖（老师截图的 levels=4）。
+       正确做法：由上限**反解**每底盘锥可用锥数 perBase，再让 budsEff 递减到
+       treeCost(budsEff,lv) ≤ perBase，保证每一株都完整生成、绝不中途截断。
+       反解下 lv=4 时 b=4~5（末级锥 64~125 个，视觉密度与 lv=3、b=9 相当，不会塌）。 */
+    var isPoly=(S.form==='poly'||S.form==='pent');
+    var BUDGET=isPoly?Math.round(MAX*0.85):80000;        // 完整子树预算：按 lv 计代价，留余量避免截断
     // 按"实际底盘锥数"分摊预算：主株 7 锥、三角孔补株仅 1 锥。
     // 若统一按 pts.length*7 算，开补株会把每株芽数从 29 压到 15，主株变糙、总锥数骤降。
     var holeN=0;for(var hpi=0;hpi<pts.length;hpi++){if(pts[hpi].hole)holeN++;}
@@ -735,18 +1389,24 @@ function buildFractal(keepCam){
     var layers=lv;                                      // 实际渲染层数：1=仅底盘锥；2=加一代；3=加两代
     function treeCost(b,L){var s=0,t=1;for(var k=0;k<L;k++){s+=t;t*=b;}return s;}
     var budsEff=buds;
-    while(budsEff>2&&treeCost(budsEff,layers)>perBase)budsEff--;
-    if(treeCost(budsEff,layers)>perBase)budsEff=2;
+    while(budsEff>1&&treeCost(budsEff,layers)>perBase)budsEff--;
+    if(treeCost(budsEff,layers)>perBase)budsEff=1;       // 兜底：宁愿芽少，也绝不让某株缺代/整株不建
     S.upBudsEff=budsEff;                                // 供 HUD 显示真实生效芽数
 
     // IFS 递归的芽：圆锥本体 + 锥面螺旋上的子芽
     // cx,cz = 所属花球(底盘锥)的中心(rootObj 局部坐标)，供斐波那契螺旋臂着色用
-    function broccoli(host,H,R,level,cx,cz,seq,gid){
+    function broccoli(host,H,R,level,cx,cz,seq,gid,apex,leafPid){
       if(nodeCount>MAX)return;
+      var myLeafId=++leafIdSeq;   // 本锥 id；子锥以它为 parentId。注：level0 主锥不渲染但占一个 id（无同级叶），无妨
+      var childPid=myLeafId;
+      /* 从数学底层删除"最顶尖那个绿色圆锥"：它是最后一级(level===lv)、
+         由母锥最顶端(t≈0.94)的芽生成的叶锥。这里直接不生成、不 push 到渲染列表，
+         而不是渲染后再隐藏。S.trimApex 可开关（默认开）。 */
+      if(S.trimApex&&lv>=2&&level===lv&&apex)return;   // lv=1 只有底盘锥，不删（否则底盘消失）
       // 本级圆锥本体：level 0 主锥是被覆盖的塔底，不渲染（避免露出大底面）
       if(level>0){
         var self=new THREE.Object3D();host.add(self);nodeCount++;
-        leafData.push({obj:self,h:H,r:R,t:(level)/Math.max(1,lv-1),level:level+1,cx:cx,cz:cz,seq:seq||0,gid:gid});
+        leafData.push({obj:self,h:H,r:R,t:(level)/Math.max(1,lv-1),level:level+1,cx:cx,cz:cz,seq:seq||0,gid:gid,_id:myLeafId,_pid:leafPid||0});
       }
       if(level>=lv)return;                              // 层级定义：lv=1 只有底盘锥；lv=2 多一代；lv=3 多两代
       // 沿锥面铺芽：底层分布角度算法可切换；t 由底(0)到顶(1)，芽随高度指数缩小
@@ -782,20 +1442,28 @@ function buildFractal(keepCam){
         bud.position.set(px,py,pz);
         if(S.upTilt>0) bud.quaternion.setFromUnitVectors(vY,axis); // upTilt=0 → 全竖直(圣诞树)
         host.add(bud);   // 容器节点不计入预算：只统计真正渲染的锥体，否则高 levels 会中途截断漏株
-        broccoli(bud,bH,bR,level+1,cx,cz,i,gid);   // i=叶序序号：theta=i·黄金角，i mod F 即 parastichy 臂号
+        // apex 沿"每级都取最顶端芽"的路径累积：只有一路走到末级的那条路径末端才是花球最顶尖的锥。
+        var isApex=!!apex&&(i===budsEff-1);
+        broccoli(bud,bH,bR,level+1,cx,cz,i,gid,isApex,childPid);   // i=叶序序号；childPid=本锥id（父子链供删底面暴露锥）
       }
     }
     S.uprightCenters=[]; S.uprightUnitR=unitR; S.uprightD=d;   // 供平面六边形砖底盘使用
+    S.pentDisks=[];   // 正五边形花盘摆放（世界位置 + 占地半径），供验证"相切不重叠"
     for(var pi=0;pi<pts.length;pi++){
       var p=pts[pi],gid=(p.gid!=null)?p.gid:null,cX=0,cZ=0;
       var isHole=!!p.hole, kf=isHole?S.fillK:1;        // 三角孔补株：单株缩小(由补株大小滑杆控)
       var rootPl=new THREE.Object3D();
-      if(p.mat){                            // 正60面体：整株按面法线"竖"在该面上
+      if(p.mat){                            // 正60面体/正五边形：整株按面法线"竖"在该面上
         rootPl.matrixAutoUpdate=false;
         rootPl.matrix.copy(p.mat);
         cX=p.mat.elements[12];cZ=p.mat.elements[14];
+        if(S.form==='pent'){
+          var me=p.mat.elements;
+          var sx=Math.sqrt(me[0]*me[0]+me[1]*me[1]+me[2]*me[2]);
+          S.pentDisks.push({x:me[12],y:me[13],z:me[14],R:R0*sx,gid:gid});   // 真实占地半径=R0·sc（不再折减）
+        }
       }else{                                // 平面蜂窝：底面平放平台
-        S.uprightCenters.push({x:p.x,z:p.z,k:kf,hole:isHole});
+        S.uprightCenters.push({x:p.x,z:p.z,k:kf,hole:isHole,edge:!!p.edge});
         var sc=scale*kf;
         rootPl.position.set(p.x,0,p.z);
         rootPl.scale.setScalar(sc);
@@ -811,13 +1479,20 @@ function buildFractal(keepCam){
         rootPl.add(bp);nodeCount++;
         // 该花球中心在 rootObj 局部坐标 = 株位置 + 底盘锥局部位置×株缩放
         var sc2=(p.mat)?0:scale*kf;   // 多面体模式用 gid 分组，cx/cz 只作平面模式后备
-        broccoli(bp,bH,bR,1,cX+cells[bi].x*sc2,cZ+cells[bi].z*sc2,bi,gid);
+        broccoli(bp,bH,bR,1,cX+cells[bi].x*sc2,cZ+cells[bi].z*sc2,bi,gid,true);  // apex 初值=每段分形路径起点
       }
     }
   }
 
-  function grow(parent,H,R,level,maxLevel){
+  function grow(parent,H,R,level,maxLevel,apex,seqPhase){
     if(nodeCount>MAX)return;
+    /* 螺旋臂配色：seqPhase 是沿递归路径累计的叶序序号相位。
+       每级子芽 i 沿黄金角 theta=i·alpha 排布，叶序序号 seq=seqPhase+i，
+       末级叶锥写入 leafData.seq → 配色按 arm=seq mod fibArms 取螺旋臂号，
+       与 upright/broccoli 的 parastichy 着色语义一致（此前 grow 缺 seq → 臂号恒0、配色退化）。*/
+    var phase=(seqPhase!=null)?seqPhase:0;
+    // 删顶尖锥（全局通用）：apex 沿"每级取最高 t 的 child(i=n-1)"累积，末级那个渲染锥即塔尖
+    var isApexChain=!!apex;
     var n=S.cones;
     var beta=Math.atan(R/H);
     var sinB=Math.sin(beta),cosB=Math.cos(beta);
@@ -826,8 +1501,16 @@ function buildFractal(keepCam){
     core.position.set(0,0,0);
     parent.add(core); nodeCount++;
     var coreH=H,coreR=R;
-    // 中央芯只作递归骨架、不渲染，塔身由末端叶锥簇构成（避免大底面外露）
-    if(level+1<maxLevel) grow(core,coreH,coreR,level+1,maxLevel);
+    /* 第0级连片主体（trunkBase）：把中央母锥作为可渲染叶锥，让长在它表面的第一级子锥
+       连成一座"山/树"，而不是各自孤立。core 轴朝上(y=1)、seq=0，配色取根部深色。
+       - 默认仅根级(level===0)渲染一个母锥；
+       - trunkAll 开启则每级都渲染（逐级收拢的宝塔芯）。
+       母锥尺寸 = 本级 H×R，正好包住本级的子锥簇（子锥位置 surfR=0.72·R(1-t)）。*/
+    if(S.trunkBase&&(level===0||S.trunkAll)){
+      leafData.push({obj:core,h:coreH,r:coreR,t:0,level:level+1,seq:0,cx:0,cz:0,_id:++leafIdSeq,_pid:0,trunk:true});
+    }
+    // 塔尖锥在最顶一级的 child 里；沿 core 向上时保持 apex 标记
+    if(level+1<maxLevel) grow(core,coreH,coreR,level+1,maxLevel,isApexChain,phase);
     if(level>=maxLevel)return;
     for(var i=0;i<n;i++){
       if(nodeCount>MAX)break;
@@ -847,14 +1530,56 @@ function buildFractal(keepCam){
       nodeCount++;
       var childH=H*S.i2o*(1-0.45*t);
       var childR=childH*S.r2l;
+      // i=n-1 → t 最大 → 塔尖方向；只有沿 apex 链一路走到末级的那一个才是塔顶尖锥
+      var childApex=isApexChain&&(i===n-1);
+      var childSeq=phase*n+i;                // 叶序序号：每层 n 芽，跨层累计 → 螺旋臂号稳定且随层级递进
       if(level+1>=maxLevel){
-        leafData.push({obj:child,h:childH,r:childR,t:t,level:level+1});
+        if(S.trimApex&&childApex)continue;   // 从数学底层不生成塔尖那个突出锥
+        leafData.push({obj:child,h:childH,r:childR,t:t,level:level+1,seq:childSeq,cx:0,cz:0,_id:++leafIdSeq,_pid:0});
       }else{
-        grow(child,childH,childR,level+1,maxLevel);
+        grow(child,childH,childR,level+1,maxLevel,childApex,childSeq);
       }
     }
   }
-  if(S.form==='poly'){
+  if(S.form==='pent'){
+    // 单个平放正五边形：一块五边形底砖 + 5 株环绕(中空)/6 株(环绕+偏小中心株中实)
+    var edge=S.pentEdge||5.0;
+    var face=buildPentagonFace(edge);
+    S.polyFaces=[face];
+    var tileGeo=buildPolyTileGeometry([face],(S.hexThick||5)*MM*0.32);
+    var tileMat=new THREE.MeshStandardMaterial({color:0xc4c9cf,roughness:0.82,metalness:0.02,side:THREE.DoubleSide});
+    S.polyTileMesh=new THREE.Mesh(tileGeo,tileMat);
+    root.add(S.polyTileMesh);
+    // 五边形轮廓线：沿 +Y 抬升，浮于花盘之上，突出正五边形识别
+    var la=[],lift=(S.pentAlgo==='ifs3d')?H0*0.012:H0*0.24;   // ifs3d 有山体，轮廓线回到基面（否则浮在半山）
+    for(var pe=0;pe<5;pe++){
+      var pa2=face.pts[pe],pb2=face.pts[(pe+1)%5];
+      la.push(pa2.x,pa2.y+lift,pa2.z,pb2.x,pb2.y+lift,pb2.z);
+    }
+    var eg2=new THREE.BufferGeometry();
+    eg2.setAttribute('position',new THREE.Float32BufferAttribute(la,3));
+    /* ifs3d 有实体山体：轮廓线开深度测试，让它被花盘正常遮挡（否则 depthTest:false 会像"画在花上"的框）；
+       平铺/IFS 模式保持原来的压顶描边，用来强调正五边形边界。 */
+    S.polyEdgeLines=new THREE.LineSegments(eg2,new THREE.LineBasicMaterial({color:0x1f2933,transparent:true,opacity:0.75,depthTest:(S.pentAlgo!=='ifs3d')}));
+    S.polyEdgeLines.renderOrder=10;
+    root.add(S.polyEdgeLines);
+    /* 底层算法三选一：相切平铺(原) / Sierpinski 五边形 IFS / 五棱锥花盘山 IFS */
+    var _pentPl;
+    if(S.pentAlgo==='ifs'){
+      _pentPl=buildPentagonIFSPlacements(face,H0,S.r2l,edge,S.ifsDepth||2,S.ifsCenter!==false);
+    }else if(S.pentAlgo==='ifs3d'){
+      var Rp3=edge/(2*Math.sin(Math.PI/5));
+      var pyrMat=new THREE.MeshStandardMaterial({color:0xc4c9cf,roughness:0.86,metalness:0.02,side:THREE.DoubleSide});
+      S.pentPyrMesh=new THREE.Mesh(buildPyramidGeometry(face,Rp3,Rp3*0.62),pyrMat);
+      root.add(S.pentPyrMesh);
+      _pentPl=buildPentagonPyramidPlacements(face,H0,S.r2l,edge,S.ifsN||80);
+    }else{
+      _pentPl=buildPentagonPlacements(face,H0,S.r2l,edge,!!S.pentSolid);
+    }
+    S._baseRing=(S.pentAlgo==='ifs3d')?(S.ifsPetal==null?1.70:S.ifsPetal):0;
+    buildUpright(rootObj,_pentPl);
+    S._baseRing=0;
+  }else if(S.form==='poly'){
     // 32 面朝外贴砖：多边形底砖 + 每面 5/6+1 株直立花盘
     var faces=buildTruncatedIcosahedron(S.polyEdge||2.4);
     S.polyFaces=faces;
@@ -863,18 +1588,85 @@ function buildFractal(keepCam){
     S.polyTileMesh=new THREE.Mesh(tileGeo,tileMat);
     root.add(S.polyTileMesh);
     if(S.polyEdges){
-      var eg=buildPolyEdgeLines(faces,H0*0.24);
+      /* 棱线抬升量跟着花盘真实尺度走（H0·0.11 是按 rich 的 sc=0.303 标定的）。
+         LOD「one」的 sc=0.421（每面一株、花盘更大更高），抬升按 sc 比例放大 → 仍贴合表面。 */
+      var _scRatio=(S.polyDens==='one')?(1.00/0.72):1;   // 每面一株的花盘 sc 是 rich 的 1/0.72 倍
+      var eg=buildPolyEdgeLines(faces,H0*0.11*_scRatio);
       S.polyEdgeLines=new THREE.LineSegments(eg,new THREE.LineBasicMaterial({color:0x1f2933,transparent:true,opacity:0.75,depthTest:false}));
       S.polyEdgeLines.renderOrder=10;   // 叠在花盘之上，确保 12 五 + 20 六边形拓扑始终可读
       root.add(S.polyEdgeLines);
     }
     buildUpright(rootObj,buildPolyPlacements(faces,H0,S.r2l,S.polyEdge||2.4));
   }else if(S.form==='upright') buildUpright(rootObj);
-  else grow(rootObj,H0,H0*S.r2l,0,S.levels);
+  else grow(rootObj,H0,H0*S.r2l,0,S.levels,true,0);   // apex=塔尖路径起点；seqPhase=0 叶序相位起点
   rootObj.updateMatrixWorld(true);   // 整棵树构建完再统一刷新世界矩阵
   if(!leafData.length)return;
   // 此时才能安全读取每个叶锥的最终世界矩阵
   leafData.forEach(function(d){ d.m=d.obj.matrixWorld.clone(); delete d.obj; });
+
+  /* ===== 消除"底面会暴露"的分形锥（数学底层：构建后按世界轴向分级处理） =====
+     圆锥底面是局部 y=0 的圆盘。世界轴(局部+Y)的 y 分量 ay 过小 → 底面朝侧面/上方可见。
+     分级：ay<0 真正倒挂(底面朝天) → 连子树删除；0≤ay<cullFloor 近水平 → 扶正(抬轴到阈值)。
+     扶正只改朝向、保持位置与尺寸 → 覆盖层不破洞，避免删锥后露出下层大锥侧面(老师红圈蓝块)。*/
+  S.culled=0;S.cullFixed=0;
+  /* 例外：正60面体是"闭合凸曲面"，花盘长在球面上、锥底贴在面砖上朝球心，
+     从球外任何角度看到的都是锥的侧面，底面永远不可见 → 绝不能用"轴朝下就删/扶正"
+     的平面判据处理（旧版把下半球 5 万多锥全删、赤道带全部扶正 → 灰底大面积裸露）。
+     故 poly 形态整体跳过该步骤；ifs3d 的花盘是"沿坡面法线"长的，底面贴在锥面上，
+     同样永远看不到底面 → 一并跳过，否则斜坡上的花盘会被误判扶正、扭出坡面。 */
+  if(S.cullBottom&&S.form!=='poly'&&!(S.form==='pent'&&S.pentAlgo==='ifs3d')){
+    // 建立 id→叶、parentId→子 索引：递归时用 seq 造父子（见下，构建期已写入 _pid/_id）
+    var byId={},children={};
+    leafData.forEach(function(d){
+      if(d._id==null)return;
+      byId[d._id]=d;
+      var p=(d._pid!=null)?d._pid:0;
+      (children[p]=children[p]||[]).push(d);
+    });
+    var bad={};
+    /* 近水平锥"扶正"：保持位置/尺寸，仅绕水平轴把锥轴抬到 y=cullFloor → 底面转为朝下不可见。
+       旧版对 0≤ay<floor 也直接删(连子树)，覆盖层破洞 → 露出下层大锥侧面(老师红圈蓝块)。
+       现在：仅 ay<0 真正倒挂(底面朝天)才删；近水平一律扶正，覆盖不产生空洞。 */
+    function fixConeUp(m){
+      var e=m.elements;
+      var sx=Math.hypot(e[0],e[1],e[2])||1;
+      var sy=Math.hypot(e[4],e[5],e[6])||1;
+      var sz=Math.hypot(e[8],e[9],e[10])||1;
+      var yx=e[4]/sy,yy=e[5]/sy,yz=e[6]/sy;
+      var hx=yx,hz=yz,hl=Math.hypot(hx,hz);
+      if(hl<1e-7){hx=1;hz=0;hl=1;}
+      hx/=hl;hz/=hl;
+      var f=Math.min(1,S.cullFloor),s=Math.sqrt(Math.max(0,1-f*f));
+      var q=new THREE.Quaternion().setFromUnitVectors(vY,new THREE.Vector3(hx*s,f,hz*s));
+      return new THREE.Matrix4().compose(new THREE.Vector3(e[12],e[13],e[14]),q,
+                                          new THREE.Vector3(sx,sy,sz));
+    }
+    leafData.forEach(function(d){
+      if(!d.m)return;
+      var e=d.m.elements,ax=Math.hypot(e[4],e[5],e[6])||1,ay=e[5]/ax;
+      if(ay>=S.cullFloor)return;
+      if(ay<0){ if(d._id!=null)bad[d._id]=1; }      // 真正倒挂(底面朝天) → 删除(连子树)
+      else { d.m=fixConeUp(d.m); S.cullFixed++; }   // 近水平 → 扶正，保留覆盖
+    });
+    // 传播：被删锥的所有后代也删（否则子锥悬空、其底面同样可能暴露）
+    var badList=Object.keys(bad);
+    for(var bi=0;bi<badList.length;bi++){
+      var stack=[parseInt(badList[bi],10)];
+      while(stack.length){
+        var cur=stack.pop(),kids=children[cur]||[];
+        for(var ki=0;ki<kids.length;ki++){
+          var cid=kids[ki]._id;
+          if(cid!=null&&!bad[cid]){bad[cid]=1;stack.push(cid);}
+        }
+      }
+    }
+    if(Object.keys(bad).length){
+      var before=leafData.length;
+      leafData=leafData.filter(function(d){return d._id==null||!bad[d._id];});
+      S.culled=before-leafData.length;
+    }
+  }
+  if(!leafData.length)return;
 
   var maxH=0;for(var mi=0;mi<leafData.length;mi++){if(leafData[mi].h>maxH)maxH=leafData[mi].h;}  // 避免大数组 apply 爆栈
   var maxLevel=S.levels;
@@ -907,6 +1699,34 @@ function buildFractal(keepCam){
     if(!rhoMap[key]||rho>rhoMap[key])rhoMap[key]=rho;
   });
 
+  /* ===== "从里到外生长"的径向进度 d._gr ∈ [0,1] =====
+     原 hsvarm 用"世界高度 y"取色 → 整个球体变成下紫上绿的上下渐变（老师指出的问题）。
+     改为按生长方向取色：以每株花盘为单位，先求该株所有锥的三维质心，
+     再算每个锥到质心的距离并做**组内归一**：
+       _gr = 0 → 花盘内芯（贴面砖的最底层锥，长在最里面）
+       _gr = 1 → 最外层的末级锥尖（长得最外面）
+     这样每朵花盘内部都完整走一遍色环，球体不再按高度分色。 */
+  function groupKeyOf(d){return (d.gid!=null)?('g'+d.gid):(Math.round((d.cx||0)*50)+'_'+Math.round((d.cz||0)*50));}
+  var gCen={};
+  leafData.forEach(function(d){
+    if(!d.m)return;
+    var key=groupKeyOf(d),o=gCen[key]||(gCen[key]={x:0,y:0,z:0,n:0,r:0});
+    o.x+=d.m.elements[12];o.y+=d.m.elements[13];o.z+=d.m.elements[14];o.n++;
+  });
+  Object.keys(gCen).forEach(function(k){var o=gCen[k];o.x/=o.n;o.y/=o.n;o.z/=o.n;});
+  leafData.forEach(function(d){
+    if(!d.m)return;
+    var o=gCen[groupKeyOf(d)];if(!o)return;
+    var dx=d.m.elements[12]-o.x,dy=d.m.elements[13]-o.y,dz=d.m.elements[14]-o.z;
+    var dd=Math.sqrt(dx*dx+dy*dy+dz*dz);
+    d._gd=dd; if(dd>o.r)o.r=dd;
+  });
+  leafData.forEach(function(d){
+    if(d._gd==null)return;
+    var o=gCen[groupKeyOf(d)];
+    d._gr=(o&&o.r>1e-6)?clamp(d._gd/o.r,0,1):0;
+  });
+
   leafData.forEach(function(d){
     var f=clamp(d.h/maxH,0,1);
     var lt=clamp((d.level-1)/Math.max(1,maxLevel-1),0,1);   // 层级归一 0..1
@@ -929,12 +1749,21 @@ function buildFractal(keepCam){
       var lig=clamp(lerp(0.26,0.50,depthN)+(hN-0.5)*0.03,0.20,0.56);
       d.color=new THREE.Color().setHSL(hue,sat,lig);
     }else if(S.cmap==='hsvarm'){
-      // HSV 连续色环做基色(按世界高度转一圈)，明度按螺旋臂号交替深浅 → 臂与臂用明暗隔开
+      /* HSV 连续色环做基色，驱动量 = "从里到外"的生长进度（不再用世界高度 hN）。
+         生长进度 g 以**分形代次 lt 为主**(同代锥全同色 → 272 株花盘颜色同步、球面不碎)，
+         再用组内径向 d._gr 做 30% 微调(同一代里靠内/靠外略有深浅差)。 */
       var seqH=(d.seq!=null)?d.seq:0;
       var armH=((Math.floor(seqH*(1+fibK*0.05))%fibArms)+fibArms)%fibArms;
       var armShade=((armH%2)+2)%2;                         // 相邻臂深浅交替
-      var baseHue=(0.60+0.85*hN+0.04*lt)%1;                // HSV 色环随高度渐变
-      var ligH=armShade?lerp(0.30,0.40,hN):lerp(0.52,0.64,hN); // 深臂/浅臂
+      /* leafData.level 从 2 起（底盘锥 push 的是 level+1），故代次归一要从 2 减：
+         用 (level-1)/(maxLevel-1) 会把底盘算成 0.5，整盘颜色层次错位。
+         grR = 组内径向距离(0=花盘内芯、1=最外层锥尖)，是"从里到外"最直观的度量；
+         以它为主(72%)、代次做微调(28%)，直立盘能看到同心色环、球面同结构株也同步。 */
+      var ltG=clamp((d.level-2)/Math.max(1,maxLevel-1),0,1);
+      var grR=(d._gr!=null)?d._gr:ltG;
+      var g=clamp(0.28*ltG+0.72*grR,0,1);                  // 0=底盘/内芯(里) → 1=末级锥尖(外)
+      var baseHue=(0.56+0.92*g)%1;                         // 色环沿生长方向递进
+      var ligH=armShade?lerp(0.30,0.45,g):lerp(0.50,0.67,g); // 内深外浅 + 深臂/浅臂
       d.color=new THREE.Color().setHSL(baseHue,0.78,ligH);
     }else if(S.cmap==='height'){
       var h=lerp(pal.hue[0],pal.hue[1],1-f)+(rnd()-0.5)*0.010;
@@ -957,7 +1786,7 @@ function buildFractal(keepCam){
   leafData.sort(function(a,b){return a.birth-b.birth;});
   S.leaves=leafData;
   // 调试：统计每株实际生成的锥数，确保没有任何一株被预算/截断漏掉
-  window.__plantStats=null;
+  if(DEBUG)window.__plantStats=null;
   if((S.form==='upright'||S.form==='poly')&&leafData.length){
     var grp={};
     leafData.forEach(function(d){
@@ -975,7 +1804,7 @@ function buildFractal(keepCam){
     });
     var ks=Object.keys(grp),mn=1e9,mx=0;
     ks.forEach(function(k){if(grp[k]<mn)mn=grp[k];if(grp[k]>mx)mx=grp[k];});
-    window.__plantStats={plants:ks.length,min:mn,max:mx,empty:ks.filter(function(k){return grp[k]===0;}).length};
+    if(DEBUG)window.__plantStats={plants:ks.length,min:mn,max:mx,empty:ks.filter(function(k){return grp[k]===0;}).length};
   }
   // InstancedMesh 统一由 buildRenderList() 创建（单株/蜂窝共用一套渲染列表）
 
@@ -1061,9 +1890,51 @@ function buildFractal(keepCam){
     root.add(mesh);S.hexBaseMesh=mesh;
   }
 
+  /* ---------- 三种分形塔落地底盘：包络全部叶锥底部的淡灰盘（圆形/正六边形） ----------
+     仅对 grow 形态（romanesco/cauliflower/broccoli）生效；按叶锥世界 xz + 底半径求
+     外接半径，使塔底完全落在盘内。厚度复用 hexThick(mm)。普通 Mesh，纳入导出。 */
+  function buildGrowBase(){
+    if(S.growBaseMesh){root.remove(S.growBaseMesh);S.growBaseMesh.geometry.dispose();S.growBaseMesh.material.dispose();S.growBaseMesh=null;}
+    if(S.form!=='fractal'||!S.growBase||!S.leaves||!S.leaves.length)return;
+    var minY=1e9,R=0,trunkBottom=null;
+    (S.leaves||[]).forEach(function(l){
+      if(!l.m)return;
+      var e=l.m.elements,x=e[12],z=e[14];
+      var r=(l.r||0)*0.5;                      // 锥底半径（ConeGeometry 底半径1→实际 r）
+      var q=Math.hypot(x,z)+r;
+      if(q>R)R=q;
+      // 锥几何已 translate(0,0.5,0)：底面在局部 y=0，其世界高度 = e[13]；
+      // 轴倾斜(ay<1)时底面圆盘额外下探 r·√(1-ay²)。旧式 y-r 把树干底面错算成 -R/2 → 大锥悬空。
+      var ax=Math.hypot(e[4],e[5],e[6])||1, ay=Math.max(-1,Math.min(1,e[5]/ax));
+      var bottomY=e[13]-r*Math.sqrt(Math.max(0,1-ay*ay));
+      if(bottomY<minY)minY=bottomY;
+      if(l.trunk&&(trunkBottom===null||bottomY<trunkBottom))trunkBottom=bottomY;  // 第0级主体(树干)底面
+    });
+    R*=1.04;                                   // 留 4% 余量，塔底不悬在盘沿
+    if(!isFinite(R)||R<=0)return;
+    var thick=S.hexThick*MM;
+    // 盘顶面贴合"第0级连片主体"树干底面(轴垂直时即 e[13])；无树干时退回全部叶锥最低底面
+    var baseBottom=(trunkBottom!==null)?trunkBottom:minY;
+    var topY=baseBottom+S.hexOverlap;          // 重叠高度可调
+    S.cutY=topY-thick;                          // 盘底面高度：其下的分形锥做布尔差集移除(渲染+导出)
+    var sides=(S.growBaseShape==='hex')?6:48;
+    var geo=new THREE.CylinderGeometry(R,R,thick,sides,1,false);
+    if(S.growBaseShape==='hex'){
+      // 六边形：顶点对准 +X（与株放射 0° 对齐）
+      geo.rotateY(Math.PI/6);
+      // 六边形内切半径=R·cos30 < R，会切掉塔底外缘 → 放大到包络
+      geo.scale(1/Math.cos(Math.PI/6),1,1/Math.cos(Math.PI/6));
+    }
+    geo.translate(0,topY-thick/2,0);
+    var mat=new THREE.MeshStandardMaterial({color:0xd5d8dc,roughness:0.82,metalness:0.02,side:THREE.DoubleSide});
+    var mesh=new THREE.Mesh(geo,mat);
+    root.add(mesh);S.growBaseMesh=mesh;
+  }
+
   /* ---------- 构建"最终渲染实例列表"：单株 or 蜂窝复制 ---------- */
   function buildRenderList(keepCam){
     S.renderList=[];
+    S.cutY=null;   // 落地裁剪平面高度(场景 Y，盘底面)：仅 grow 形态落地盘启用；null=不裁
     // 底板 mesh
     if(S.plateMesh){root.remove(S.plateMesh);S.plateMesh.geometry.dispose();S.plateMesh.material.dispose();S.plateMesh=null;}
     var boxMin=new THREE.Vector3(),boxMax=new THREE.Vector3();
@@ -1114,22 +1985,44 @@ function buildFractal(keepCam){
       _camFramed=true;
     }
     buildHexBase();
+    buildGrowBase();
+    // 盘底以下布尔差集：渲染层用全局裁剪平面(保留 y>=cutY)，导出层在 collectTriangles 逐三角裁
+    if(S.cutY!=null){renderer.clippingPlanes=[new THREE.Plane(new THREE.Vector3(0,1,0),-S.cutY)];}
+    else{renderer.clippingPlanes=[];}
   }
 
   /* ---------- 公共：提取所有三角面（单位 mm） ---------- */
   function collectTriangles(seg){
     if(!S.renderList.length)return [];
+    /* 缓存：一次构建内 STL/OBJ/PLY 共用同一份三角表。
+       旧版连点三种格式会把 6 万实例矩阵 + 半空间裁剪重算三遍（bucky 每次 ~0.9s）。
+       签名覆盖所有影响几何的输入；buildFractal 重建时清空。 */
+    var _sig=(seg||5)+'|'+Math.round(clamp(S.prog,0,1)*1000)+'|'
+            +(S.cutY==null?'n':S.cutY.toFixed(4))+'|'+S.renderList.length+'|'+(S._lowQ?1:0);
+    if(S._triCache&&S._triCache.sig===_sig)return S._triCache.tris;
     var tris=[];
     var expGeo=new THREE.ConeGeometry(1,1,seg||5,1,false);
     expGeo.translate(0,0.5,0);
     var pos=expGeo.getAttribute('position'),idx=expGeo.index;
     var triCount=idx?idx.count/3:pos.count/3;
-    var v=new THREE.Vector3(),k=1/MM;
+    var v=new THREE.Vector3(),k=1/MM,cutY=S.cutY;   // cutY: 场景单位盘底面高度；null=不裁
+    function emit(a,b,c2){tris.push([a.x*k,a.y*k,a.z*k,b.x*k,b.y*k,b.z*k,c2.x*k,c2.y*k,c2.z*k]);}
+    // 半空间裁剪(Sutherland–Hodgman)：保留 y>=cutY，三角形被裁成 0/1/2 个 → 真实布尔差集
+    function clipTri(a,b,c2){
+      if(cutY==null){emit(a,b,c2);return;}
+      var pts=[a,b,c2],out=[];
+      for(var i=0;i<3;i++){
+        var p=pts[i],q=pts[(i+1)%3],pin=(p.y>=cutY),qin=(q.y>=cutY);
+        if(pin)out.push(p);
+        if(pin!==qin){var t=(cutY-p.y)/(q.y-p.y);out.push(new THREE.Vector3(p.x+(q.x-p.x)*t,cutY,p.z+(q.z-p.z)*t));}
+      }
+      for(var j=2;j<out.length;j++)emit(out[0],out[j-1],out[j]);
+    }
     function push(mat,p1,p2,p3){
       v.fromBufferAttribute(pos,p1).applyMatrix4(mat);var a=v.clone();
       v.fromBufferAttribute(pos,p2).applyMatrix4(mat);var b=v.clone();
       v.fromBufferAttribute(pos,p3).applyMatrix4(mat);var cc=v.clone();
-      tris.push([a.x*k,a.y*k,a.z*k,b.x*k,b.y*k,b.z*k,cc.x*k,cc.y*k,cc.z*k]);
+      clipTri(a,b,cc);
     }
     S.renderList.forEach(function(l){
       var g=clamp(S.prog,0,1),s=(g<=l.birth)?0.0001:1;
@@ -1150,20 +2043,20 @@ function buildFractal(keepCam){
         tris.push([a2.x*k,a2.y*k,a2.z*k,b2.x*k,b2.y*k,b2.z*k,c2.x*k,c2.y*k,c2.z*k]);
       }
     }
-    // 红色六边形砖底盘（每个实例一块正六棱柱）
-    if(S.hexBaseMesh){
-      var hm=S.hexBaseMesh,hg=hm.geometry,hp=hg.getAttribute('position'),hi=hg.index;
-      var ht=hi?hi.count/3:hp.count/3, im4=new THREE.Matrix4();
-      for(var ii=0;ii<hm.count;ii++){
-        hm.getMatrixAt(ii,im4);
-        for(var t3=0;t3<ht;t3++){
-          var ha=new THREE.Vector3().fromBufferAttribute(hp,hi?hi.getX(t3*3):t3*3).applyMatrix4(im4);
-          var hb2=new THREE.Vector3().fromBufferAttribute(hp,hi?hi.getX(t3*3+1):t3*3+1).applyMatrix4(im4);
-          var hc=new THREE.Vector3().fromBufferAttribute(hp,hi?hi.getX(t3*3+2):t3*3+2).applyMatrix4(im4);
-          tris.push([ha.x*k,ha.y*k,ha.z*k,hb2.x*k,hb2.y*k,hb2.z*k,hc.x*k,hc.y*k,hc.z*k]);
-        }
+    // 淡灰底盘：直立花盘六棱柱 + 三种分形塔落地盘（均为普通 Mesh，按 matrixWorld 导出）
+    // 修复：原代码误用 InstancedMesh 的 .count/.getMatrixAt，而底盘是普通 Mesh → 循环不执行、底盘从未导出。
+    [S.hexBaseMesh,S.growBaseMesh].forEach(function(hm){
+      if(!hm)return;
+      hm.updateMatrixWorld(true);
+      var hg=hm.geometry,hp=hg.getAttribute('position'),hi=hg.index;
+      var ht=hi?hi.count/3:hp.count/3;
+      for(var t3=0;t3<ht;t3++){
+        var ha=new THREE.Vector3().fromBufferAttribute(hp,hi?hi.getX(t3*3):t3*3).applyMatrix4(hm.matrixWorld);
+        var hb2=new THREE.Vector3().fromBufferAttribute(hp,hi?hi.getX(t3*3+1):t3*3+1).applyMatrix4(hm.matrixWorld);
+        var hc=new THREE.Vector3().fromBufferAttribute(hp,hi?hi.getX(t3*3+2):t3*3+2).applyMatrix4(hm.matrixWorld);
+        tris.push([ha.x*k,ha.y*k,ha.z*k,hb2.x*k,hb2.y*k,hb2.z*k,hc.x*k,hc.y*k,hc.z*k]);
       }
-    }
+    });
     // 正60面体：32 块面砖（多边形棱柱）一并导出
     if(S.polyTileMesh){
       var pm3=S.polyTileMesh,pg3=pm3.geometry,pa3=pg3.getAttribute('position');
@@ -1176,11 +2069,12 @@ function buildFractal(keepCam){
       }
     }
     expGeo.dispose();
+    S._triCache={sig:_sig,tris:tris};   // 供本次构建内多次导出复用
     return tris;
   }
   function baseName(){
     var tag=S.form==='poly'?('bucky32faces_'+(S.polyFaces?S.polyFaces.length:32)+'tiles')
-                          :(S.honey?('honey_'+S.cells.length+'cells'):'single');
+                          :(S.form==='pent'?('pentagon_'+(S.pentSolid?'6solid':'5hollow')):(S.honey?('honey_'+S.cells.length+'cells'):'single'));
     return 'romanesco_'+tag+'_'+S.levels+'L';
   }
   function download(blob,name){
@@ -1210,24 +2104,70 @@ function buildFractal(keepCam){
     return tris.length;
   }
 
-  /* ---------- OBJ（文本，共享顶点以减小体积） ---------- */
+  /* ---------- OBJ（文本，共享顶点以减小体积） ----------
+     性能重写：原版 13.9 万锥要 4281ms，是 STL 的 10 倍。三个瓶颈：
+     ① 顶点 key 用 toFixed(4) 拼字符串 → 每个三角面 3 次、合计 830 万次格式化分配；
+     ② lines.push 逐行 + 一次超大 join；
+     ③ 顶点与面同时累加，但 OBJ 要求 v 先于 f。
+     改法：整数量化 key（Number→String 走 V8 快速路径）+ Map 查表
+          + 定长数组分块 join + 先出全部顶点再出面。 */
   function exportOBJ(){
     var tris=collectTriangles(S.stlSeg||5);
     if(!tris.length){alert('没有可导出的几何');return 0;}
-    var verts=[],index={},faces=[];
-    function vid(x,y,z){
-      var key=x.toFixed(4)+','+y.toFixed(4)+','+z.toFixed(4);
-      if(index[key]!==undefined)return index[key];
-      var id=verts.length+1;verts.push([x,y,z]);index[key]=id;return id;
+    var Q=10000;                                   // 去重量化精度 1e-4 mm
+    /* 顶点去重：整型开放寻址哈希表，替代 Map<string,id>。
+       830 万次查询若用字符串 key，每次都要分配一个 ~20 字符临时串（实测 2413ms 的主因）。
+       这里把量化整数直接塞进 Int32Array，零分配。
+       容量按"引用数的 55%"预估（锥体每株仅 11 个唯一顶点，实际唯一率约 18%），
+       并在负载超 70% 时降级为"不去重"（只多几个重复顶点行，绝不改变面的拓扑、也不会死循环）。 */
+    var want=Math.ceil(tris.length*3*0.55),cap=1;
+    while(cap<want*2)cap<<=1;
+    if(cap>1<<23)cap=1<<23;                        // 上限 838 万槽（≈100MB），防爆内存
+    var mask=cap-1,limit=Math.floor(cap*0.7);
+    var hk=new Int32Array(cap*3),hv=new Int32Array(cap);
+    var ids=new Int32Array(tris.length*3);
+    var vchunks=[],vcur=new Array(2048),vn=0,vid=0;
+    function flushV(){if(vn){vchunks.push(vcur.slice(0,vn).join(''));vn=0;}}
+    /* 手写 1e-4 定点格式化：Number→String 走 V8 快速路径，
+       比 toFixed(4) 快数倍（139k 锥要格式化约 150 万个坐标）。 */
+    function f4(v){return String(Math.round(v*Q)/Q);}
+    function vidOf(x,y,z){
+      var ix=Math.round(x*Q)|0,iy=Math.round(y*Q)|0,iz=Math.round(z*Q)|0;
+      var h=(Math.imul(ix,73856093)^Math.imul(iy,19349663)^Math.imul(iz,83492791))&mask;
+      var o3=h*3;
+      for(;;){
+        var v=hv[h];
+        if(v===0){
+          if(vid>=limit)break;                     // 表将满 → 降级：不再登记，直接给新 id
+          v=++vid;hv[h]=v;hk[o3]=ix;hk[o3+1]=iy;hk[o3+2]=iz;
+          vcur[vn++]='v '+f4(x)+' '+f4(y)+' '+f4(z)+'\n';
+          if(vn>=2048)flushV();
+          return v;
+        }
+        if(hk[o3]===ix&&hk[o3+1]===iy&&hk[o3+2]===iz)return v;
+        h=(h+1)&mask;o3=h*3;
+      }
+      var fresh=++vid;                             // 降级分支：顶点行照写，但不进表
+      vcur[vn++]='v '+f4(x)+' '+f4(y)+' '+f4(z)+'\n';
+      if(vn>=2048)flushV();
+      return fresh;
     }
-    tris.forEach(function(t){
-      var a=vid(t[0],t[1],t[2]),b=vid(t[3],t[4],t[5]),c=vid(t[6],t[7],t[8]);
-      faces.push([a,b,c]);
-    });
-    var lines=['# Romanesco fractal — unit mm','# '+S.levels+'L, '+S.cells.length+' cells','o romanesco'];
-    verts.forEach(function(v){lines.push('v '+v[0].toFixed(4)+' '+v[1].toFixed(4)+' '+v[2].toFixed(4));});
-    faces.forEach(function(f){lines.push('f '+f[0]+' '+f[1]+' '+f[2]);});
-    download(new Blob([lines.join('\n')],{type:'text/plain'}),baseName()+'.obj');
+    for(var i=0;i<tris.length;i++){
+      var t=tris[i],b=i*3;
+      ids[b]=vidOf(t[0],t[1],t[2]);
+      ids[b+1]=vidOf(t[3],t[4],t[5]);
+      ids[b+2]=vidOf(t[6],t[7],t[8]);
+    }
+    flushV();
+    var fchunks=[],fcur=new Array(4096),fn=0;
+    for(var j=0;j<tris.length;j++){
+      var q=j*3;
+      fcur[fn++]='f '+ids[q]+' '+ids[q+1]+' '+ids[q+2]+'\n';
+      if(fn>=4096){fchunks.push(fcur.slice(0,fn).join(''));fn=0;}
+    }
+    if(fn)fchunks.push(fcur.slice(0,fn).join(''));
+    var head='# Romanesco fractal - unit mm\n# '+S.levels+'L '+S.renderList.length+' cones\no romanesco\n';
+    download(new Blob([head,vchunks.join(''),fchunks.join('')],{type:'text/plain'}),baseName()+'.obj');
     return tris.length;
   }
 
@@ -1251,6 +2191,322 @@ function buildFractal(keepCam){
     download(new Blob([buf],{type:'application/octet-stream'}),baseName()+'.ply');
     return tris.length;
   }
+
+  /* ================= 3D 打印 · 水密体重铸 =================
+     普通导出（STL/OBJ/PLY）是"视觉实体"：每个锥各带一套封闭三角面，彼此穿插。
+     拓扑上同一条空间边会被 3 个以上面共享、面与面自相交 → 切片软件报非流形边。
+     这里换一条完全不同的路线（不是修修补补，是重铸造）：
+       ① 把每个锥写成解析有符号距离场 sdCone(x)（<0 在体内）；
+       ② f(x) = min_k sdCone_k(x)  —— 并集在 SDF 里就是 min，天然"布尔并集"；
+       ③ 在体素网格上采样 f，再用 Surface Nets 提等值面。
+     构造上保证：等值面是闭合的、每条边恰好被 2 个三角面共享 → 水密（watertight）。
+     代价：精度受体素尺寸限制（默认 144 分档 ≈ 1mm），比"DCC 精确布尔"粗糙，
+     但这是纯前端、单文件、几秒内能跑完的唯一可行做法。 */
+  var PRINT={last:null};
+  /* 拓扑自检：闭合流形的判据是「每条边恰好被 2 个三角面共享」。
+     count==1 → 边界边（有洞）；count>2 → 非流形边（面互相穿插/重叠）。 */
+  function topoStats(ids, nvN, triN){
+    var E=new Map(),bad=0,bnd=0;
+    function add(a,b){
+      var lo=a<b?a:b,hi=a<b?b:a,k=lo*nvN+hi;
+      var c=E.get(k);E.set(k,c===undefined?1:c+1);
+    }
+    for(var t=0;t<triN;t++){
+      var a=ids[t*3],b=ids[t*3+1],c=ids[t*3+2];
+      add(a,b);add(b,c);add(c,a);
+    }
+    E.forEach(function(c){if(c>2)bad++;else if(c===1)bnd++;});
+    return {edges:E.size,nonManifold:bad,boundary:bnd};
+  }
+  function exportPrintSTL(res,withBase){
+    var L=S.renderList;
+    if(!L.length){alert('没有可导出的几何');return 0;}
+    var k=1/MM,n=L.length;
+    var cx=new Float64Array(n),cy=new Float64Array(n),cz=new Float64Array(n);
+    var ux=new Float64Array(n),uy=new Float64Array(n),uz=new Float64Array(n);
+    var hh=new Float64Array(n),rr=new Float64Array(n);
+    var minX=1e30,minY=1e30,minZ=1e30,maxX=-1e30,maxY=-1e30,maxZ=-1e30;
+    var MM4=new THREE.Matrix4(),SC=new THREE.Matrix4();
+    for(var i=0;i<n;i++){
+      var l=L[i];
+      SC.makeScale(l.r,l.h,l.r);
+      MM4.copy(l.m).multiply(SC);
+      var e=MM4.elements;
+      var px=e[12]*k,py=e[13]*k,pz=e[14]*k;
+      var vx=e[4]*k,vy=e[5]*k,vz=e[6]*k;
+      var H=Math.sqrt(vx*vx+vy*vy+vz*vz);
+      if(!(H>1e-9)){hh[i]=0;rr[i]=0;continue;}
+      var R=Math.sqrt(e[0]*e[0]+e[1]*e[1]+e[2]*e[2])*k;
+      cx[i]=px;cy[i]=py;cz[i]=pz;
+      ux[i]=vx/H;uy[i]=vy/H;uz[i]=vz/H;
+      hh[i]=H;rr[i]=R;
+      var tx=px+ux[i]*H,ty=py+uy[i]*H,tz=pz+uz[i]*H;
+      minX=Math.min(minX,px-R,tx-R);maxX=Math.max(maxX,px+R,tx+R);
+      minY=Math.min(minY,py-R,ty-R);maxY=Math.max(maxY,py+R,ty+R);
+      minZ=Math.min(minZ,pz-R,tz-R);maxZ=Math.max(maxZ,pz+R,tz+R);
+    }
+    if(!(maxX>minX))return 0;
+    /* 平底托：给模型一个水平底面，否则一堆悬浮锥没法上机。
+       半径取最大水平半径 +1mm，厚度 2mm，顶面比最低锥底高 0.6mm（与锥体相交 → 同一个实体）。
+       已有落地裁剪面（S.cutY）时不再额外加，改为把网格下半空间直接裁掉。 */
+    var plateY0=0,plateY1=0,plateR=0,usePlate=false;
+    if(withBase&&S.cutY==null){
+      var maxRad=0;
+      for(var q=0;q<n;q++){
+        if(!rr[q])continue;
+        maxRad=Math.max(maxRad,Math.hypot(cx[q],cz[q])+rr[q]);
+      }
+      plateR=maxRad+1.0;
+      plateY0=minY-2.0;plateY1=minY+0.6;
+      usePlate=true;
+      minX=Math.min(minX,-plateR);maxX=Math.max(maxX,plateR);
+      minZ=Math.min(minZ,-plateR);maxZ=Math.max(maxZ,plateR);
+      minY=plateY0;
+    }
+    var kCut=(S.cutY==null)?null:S.cutY*k;
+    if(kCut!=null)minY=Math.min(minY,kCut);
+    var pad=2.0;
+    minX-=pad;minY-=pad;minZ-=pad;maxX+=pad;maxY+=pad;maxZ+=pad;
+    var sx=maxX-minX,sy=maxY-minY,sz=maxZ-minZ;
+    var vox=Math.max(sx,Math.max(sy,sz))/(res||144);
+    var nx,ny,nz,total;
+    for(;;){
+      nx=Math.ceil(sx/vox)+1;ny=Math.ceil(sy/vox)+1;nz=Math.ceil(sz/vox)+1;
+      total=nx*ny*nz;
+      if(total<=11000000)break;
+      vox*=1.12;                       // 超内存/超时保护：自动降分辨率
+    }
+    var sdf=new Float32Array(total);
+    sdf.fill(vox*2.2);                 // 初始"远离表面"，为正（体外）
+    var inv=1/vox;
+    var nxny=nx*ny;
+    /* 平滑并集（多项式 smin）半径 ≈ 0.9 体素。
+       作用有两个：① 把小于一个体素的薄颈合并掉 —— 否则面会在同一体素内穿过两次，
+       Surface Nets 会因此产生"同一条边被 4 个面共享"的非流形边；② 打印件不留刀口薄壁。
+       |a−b| > k 时公式退化为 min，不影响正常区域。 */
+    var smK=vox*0.95;
+    /* 锥的有符号距离（iq 的 sdCappedCone，底半径 R @y=0、顶半径 0 @y=H） */
+    function sdCone(px,py,pz,ccx,ccy,ccz,ax,ay,az,H,R){
+      var dx=px-ccx,dy=py-ccy,dz=pz-ccz;
+      var t=dx*ax+dy*ay+dz*az;
+      var ox=dx-ax*t,oy2=dy-ay*t,oz=dz-az*t;
+      var rad=Math.sqrt(ox*ox+oy2*oy2+oz*oz);
+      var h=H*0.5,qx=rad,qy=t-h;
+      var minx=(qy<0)?R:0;
+      var cax=qx-(qx<minx?qx:minx);
+      var cay=(qy<0?-qy:qy)-h;
+      var k2x=-R,k2y=H;
+      var kk=k2x*k2x+k2y*k2y;
+      var ss=((0-qx)*k2x+(h-qy)*k2y)/kk;
+      ss=ss<0?0:(ss>1?1:ss);
+      var cbx=qx+k2x*ss,cby=qy-h+k2y*ss;
+      var d1=cax*cax+cay*cay,d2=cbx*cbx+cby*cby;
+      var dd=d1<d2?d1:d2;
+      var sg=(cbx<0&&cay<0)?-1:1;
+      return sg*Math.sqrt(dd);
+    }
+    for(var ci=0;ci<n;ci++){
+      var R=rr[ci],H=hh[ci];
+      if(!(R>0&&H>0))continue;
+      var bx=ux[ci],by=uy[ci],bz=uz[ci];
+      var tx2=cx[ci]+bx*H,ty2=cy[ci]+by*H,tz2=cz[ci]+bz*H;
+      var lx=Math.min(cx[ci],tx2)-R,hx=Math.max(cx[ci],tx2)+R;
+      var ly=Math.min(cy[ci],ty2)-R,hy=Math.max(cy[ci],ty2)+R;
+      var lz=Math.min(cz[ci],tz2)-R,hz=Math.max(cz[ci],tz2)+R;
+      var i0=Math.max(0,Math.floor((lx-minX)*inv)),i1=Math.min(nx-1,Math.ceil((hx-minX)*inv));
+      var j0=Math.max(0,Math.floor((ly-minY)*inv)),j1=Math.min(ny-1,Math.ceil((hy-minY)*inv));
+      var k0=Math.max(0,Math.floor((lz-minZ)*inv)),k1=Math.min(nz-1,Math.ceil((hz-minZ)*inv));
+      for(var zz=k0;zz<=k1;zz++){
+        var wz=minZ+zz*vox;
+        for(var yy=j0;yy<=j1;yy++){
+          var wy=minY+yy*vox;
+          var row=yy*nx+zz*nxny;
+          for(var xx=i0;xx<=i1;xx++){
+            var d=sdCone(minX+xx*vox,wy,wz,cx[ci],cy[ci],cz[ci],bx,by,bz,H,R);
+            var id=row+xx,cur=sdf[id];
+            var hb=0.5+0.5*(cur-d)/smK;hb=hb<0?0:(hb>1?1:hb);
+            var smd=cur*(1-hb)+d*hb-smK*hb*(1-hb);
+            if(smd<cur)sdf[id]=smd;
+          }
+        }
+      }
+    }
+    if(usePlate){                       // 平底托：圆柱 SDF
+      var pi0=Math.max(0,Math.floor((-plateR-minX)*inv)),pi1=Math.min(nx-1,Math.ceil((plateR-minX)*inv));
+      var pj0=Math.max(0,Math.floor((plateY0-minY)*inv)),pj1=Math.min(ny-1,Math.ceil((plateY1-minY)*inv));
+      var pk0=Math.max(0,Math.floor((-plateR-minZ)*inv)),pk1=Math.min(nz-1,Math.ceil((plateR-minZ)*inv));
+      for(var z3=pk0;z3<=pk1;z3++){
+        var wz3=minZ+z3*vox;
+        for(var y3=pj0;y3<=pj1;y3++){
+          var wy3=minY+y3*vox;
+          var dy3=Math.max(plateY0-wy3,wy3-plateY1);
+          var row3=y3*nx+z3*nxny;
+          for(var x3=pi0;x3<=pi1;x3++){
+            var wx3=minX+x3*vox;
+            var dr3=Math.sqrt(wx3*wx3+wz3*wz3)-plateR;
+            var mx3=Math.max(dr3,0),my3=Math.max(dy3,0);
+            var dc=Math.sqrt(mx3*mx3+my3*my3)+Math.min(Math.max(dr3,dy3),0);
+            var id3=row3+x3,cur3=sdf[id3];
+            var hb3=0.5+0.5*(cur3-dc)/smK;hb3=hb3<0?0:(hb3>1?1:hb3);
+            var sm3=cur3*(1-hb3)+dc*hb3-smK*hb3*(1-hb3);
+            if(sm3<cur3)sdf[id3]=sm3;
+          }
+        }
+      }
+    }
+    if(kCut!=null){                     // 落地裁剪：半空间 y>=cutY 与并集求交
+      var jc=Math.max(0,Math.floor((kCut-minY)*inv));
+      for(var z4=0;z4<nz;z4++){
+        for(var y4=0;y4<=jc;y4++){
+          var hv=kCut-(minY+y4*vox);
+          var row4=y4*nx+z4*nxny;
+          for(var x4=0;x4<nx;x4++){
+            var id4=row4+x4;
+            if(hv>sdf[id4])sdf[id4]=hv;
+          }
+        }
+      }
+    }
+    /* 统一微外扩 0.06 体素（只为数值安全，肉眼不可见）。
+       实测：外扩 0.28 体素能把非流形边再压掉一半，但体积会涨 10~25%（因为 smin 把
+       1mm 级的窄缝也并实了）→ 打印尺寸失真。宁可留几处亚体素自接触，也不改尺寸。 */
+    var offv=vox*0.06;
+    for(var oi=0;oi<total;oi++)sdf[oi]-=offv;
+    /* ---- Surface Nets：每个有符号变化的体素放 1 个顶点，跨符号的格边生成 1 个四边形 ---- */
+    var CX=nx-1,CY=ny-1,CZ=nz-1;
+    var cellV=new Int32Array(CX*CY*CZ).fill(-1);
+    var VX=[],VY=[],VZ=[];
+    var cox=[0,1,0,1,0,1,0,1],coy=[0,0,1,1,0,0,1,1],coz=[0,0,0,0,1,1,1,1];
+    var ea=[0,2,4,6,0,1,4,5,0,1,2,3],eb=[1,3,5,7,2,3,6,7,4,5,6,7];
+    var s8=new Float64Array(8);
+    for(var kz=0;kz<CZ;kz++){
+      for(var ky=0;ky<CY;ky++){
+        for(var kx=0;kx<CX;kx++){
+          var b0=kx+nx*(ky+ny*kz);
+          s8[0]=sdf[b0];s8[1]=sdf[b0+1];s8[2]=sdf[b0+nx];s8[3]=sdf[b0+nx+1];
+          s8[4]=sdf[b0+nxny];s8[5]=sdf[b0+nxny+1];s8[6]=sdf[b0+nxny+nx];s8[7]=sdf[b0+nxny+nx+1];
+          var mask=0;
+          for(var m0=0;m0<8;m0++){if(s8[m0]<0)mask|=(1<<m0);}
+          if(mask===0||mask===255)continue;
+          var ax0=0,ay0=0,az0=0,cnt=0;
+          for(var ed=0;ed<12;ed++){
+            var ia=ea[ed],ib=eb[ed],sa=s8[ia],sb=s8[ib];
+            if((sa<0)===(sb<0))continue;
+            var tt=sa/(sa-sb);
+            ax0+=cox[ia]+(cox[ib]-cox[ia])*tt;
+            ay0+=coy[ia]+(coy[ib]-coy[ia])*tt;
+            az0+=coz[ia]+(coz[ib]-coz[ia])*tt;
+            cnt++;
+          }
+          if(!cnt)continue;
+          cellV[kx+CX*(ky+CY*kz)]=VX.length;
+          VX.push(minX+(kx+ax0/cnt)*vox);
+          VY.push(minY+(ky+ay0/cnt)*vox);
+          VZ.push(minZ+(kz+az0/cnt)*vox);
+        }
+      }
+    }
+    var tris=[];
+    function cellId(a,b,c){return cellV[a+CX*(b+CY*c)];}
+    function quad(a,b,c,d,flip){
+      if(a<0||b<0||c<0||d<0)return;
+      if(flip){tris.push(a,d,c,a,c,b);}
+      else{tris.push(a,b,c,a,c,d);}
+    }
+    // x 向格边
+    for(var kz2=1;kz2<nz-1;kz2++){
+      for(var ky2=1;ky2<ny-1;ky2++){
+        for(var kx2=0;kx2<nx-1;kx2++){
+          var p0=kx2+nx*(ky2+ny*kz2);
+          var va=sdf[p0],vb=sdf[p0+1];
+          if((va<0)===(vb<0))continue;
+          quad(cellId(kx2,ky2-1,kz2-1),cellId(kx2,ky2,kz2-1),
+               cellId(kx2,ky2,kz2),cellId(kx2,ky2-1,kz2),va>=0);
+        }
+      }
+    }
+    // y 向格边
+    for(var kz3=1;kz3<nz-1;kz3++){
+      for(var ky3=0;ky3<ny-1;ky3++){
+        for(var kx3=1;kx3<nx-1;kx3++){
+          var p1=kx3+nx*(ky3+ny*kz3);
+          var vc=sdf[p1],vd=sdf[p1+nx];
+          if((vc<0)===(vd<0))continue;
+          quad(cellId(kx3-1,ky3,kz3-1),cellId(kx3-1,ky3,kz3),
+               cellId(kx3,ky3,kz3),cellId(kx3,ky3,kz3-1),vc>=0);
+        }
+      }
+    }
+    // z 向格边
+    for(var kz4=0;kz4<nz-1;kz4++){
+      for(var ky4=1;ky4<ny-1;ky4++){
+        for(var kx4=1;kx4<nx-1;kx4++){
+          var p2=kx4+nx*(ky4+ny*kz4);
+          var ve=sdf[p2],vf=sdf[p2+nxny];
+          if((ve<0)===(vf<0))continue;
+          quad(cellId(kx4-1,ky4-1,kz4),cellId(kx4,ky4-1,kz4),
+               cellId(kx4,ky4,kz4),cellId(kx4-1,ky4,kz4),ve>=0);
+        }
+      }
+    }
+    var nt=tris.length/3;
+    if(!nt){alert('重铸失败：没有生成任何三角面（模型过小或精度过低）');return 0;}
+    /* 拓扑自检：闭合流形的判据是「每条边恰好被 2 个三角面共享」。 */
+    var topo=topoStats(tris,VX.length,nt);
+    if(DEBUG)window.__topoStats=topoStats;
+    /* 全局朝向校正：散度定理算有符号体积，为负说明整体朝内 → 翻面 */
+    var vol=0;
+    for(var t2=0;t2<nt;t2++){
+      var i0=tris[t2*3],i1=tris[t2*3+1],i2=tris[t2*3+2];
+      var x1=VX[i0],y1=VY[i0],z1=VZ[i0];
+      var x2=VX[i1],y2=VY[i1],z2=VZ[i1];
+      var x3=VX[i2],y3=VY[i2],z3=VZ[i2];
+      vol+=(x1*(y2*z3-y3*z2)-y1*(x2*z3-x3*z2)+z1*(x2*y3-x3*y2))/6;
+    }
+    if(vol<0){for(var t3=0;t3<nt;t3++){var tm=tris[t3*3+1];tris[t3*3+1]=tris[t3*3+2];tris[t3*3+2]=tm;}}
+    var bufP=new ArrayBuffer(84+nt*50),dvP=new DataView(bufP);
+    var encP=function(off,str){for(var i=0;i<str.length&&i<79;i++)dvP.setUint8(off+i,str.charCodeAt(i));};
+    encP(0,'watertight voxel union (SDF+surfacenets) '+nt+' tris unit=mm');
+    dvP.setUint32(80,nt,true);
+    var o2=84;
+    for(var t4=0;t4<nt;t4++){
+      var a0=tris[t4*3],b1=tris[t4*3+1],c2=tris[t4*3+2];
+      var X1=VX[a0],Y1=VY[a0],Z1=VZ[a0];
+      var X2=VX[b1],Y2=VY[b1],Z2=VZ[b1];
+      var X3=VX[c2],Y3=VY[c2],Z3=VZ[c2];
+      var ax2=X2-X1,ay2=Y2-Y1,az2=Z2-Z1,bx2=X3-X1,by2=Y3-Y1,bz2=Z3-Z1;
+      var nx2=ay2*bz2-az2*by2,ny2=az2*bx2-ax2*bz2,nz2=ax2*by2-ay2*bx2;
+      var ln=Math.sqrt(nx2*nx2+ny2*ny2+nz2*nz2)||1;
+      dvP.setFloat32(o2,nx2/ln,true);dvP.setFloat32(o2+4,ny2/ln,true);dvP.setFloat32(o2+8,nz2/ln,true);o2+=12;
+      dvP.setFloat32(o2,X1,true);dvP.setFloat32(o2+4,Y1,true);dvP.setFloat32(o2+8,Z1,true);o2+=12;
+      dvP.setFloat32(o2,X2,true);dvP.setFloat32(o2+4,Y2,true);dvP.setFloat32(o2+8,Z2,true);o2+=12;
+      dvP.setFloat32(o2,X3,true);dvP.setFloat32(o2+4,Y3,true);dvP.setFloat32(o2+8,Z3,true);o2+=12;
+      dvP.setUint16(o2,0,true);o2+=2;
+    }
+    PRINT.last={tris:nt,verts:VX.length,vox:vox,nx:nx,ny:ny,nz:nz,res:res||144,
+                volume:Math.abs(vol),plate:usePlate,clip:kCut!=null,
+                edges:topo.edges,nonManifold:topo.nonManifold,boundary:topo.boundary};
+    download(new Blob([bufP],{type:'model/stl'}),baseName()+'_watertight.stl');
+    return nt;
+  }
+  if(DEBUG)window.__print=function(){return PRINT.last;};
+  if(DEBUG)window.__printRun=function(r,b){return exportPrintSTL(r,b);};
+  /* 对照：普通导出（视觉实体）的拓扑自检 —— 顶点按 0.01mm 量化后统计共享边 */
+  if(DEBUG)window.__normalTopo=function(){
+    var t=collectTriangles(S.stlSeg||5);
+    if(!t.length)return null;
+    var ids=new Int32Array(t.length*3),map=new Map(),nv=0;
+    for(var i=0;i<t.length;i++){
+      var tr=t[i];
+      for(var j=0;j<3;j++){
+        var kx=Math.round(tr[j*3]*100),ky=Math.round(tr[j*3+1]*100),kz=Math.round(tr[j*3+2]*100);
+        var kk=kx+'_'+ky+'_'+kz,g=map.get(kk);
+        if(g===undefined){g=++nv;map.set(kk,g);}
+        ids[i*3+j]=g;
+      }
+    }
+    var r=topoStats(ids,nv+1,t.length);r.tris=t.length;r.verts=nv;return r;
+  };
 
   /* ---------- STEP（AP203 · 三角面片 BREP，单位 mm） ---------- */
   /* 说明：STEP 面数过多时文件会很大，接口给 3 万面上限保护。 */
@@ -1320,26 +2576,127 @@ function buildFractal(keepCam){
     return tris.length;
   }
 
-  window.__exporters={stl:exportSTL,obj:exportOBJ,ply:exportPLY,step:exportSTEP,stp:exportSTEP};
-  window.__cam={theta:function(){return cam.theta;},phi:function(){return cam.phi;},radius:function(){return cam.radius;}};  // 只读调试接口
-  // 三角孔补株只读调试：主株格点、补株重心、间距 d、实际补株数
-  window.__fill=function(){
+  /* 导出器注册表赋值（EXPORTERS 已在顶层声明） */
+  EXPORTERS={stl:exportSTL,obj:exportOBJ,ply:exportPLY,step:exportSTEP,stp:exportSTEP};
+  PRINTAPI={run:exportPrintSTL,stat:PRINT};
+  if(DEBUG)window.__exporters=EXPORTERS;
+  if(DEBUG)window.__cam={theta:function(){return cam.theta;},phi:function(){return cam.phi;},radius:function(){return cam.radius;}};  // 只读调试接口
+  if(DEBUG)window.__camSet=function(th,ph,r){if(th!=null)cam.theta=th;if(ph!=null)cam.phi=ph;if(r!=null)cam.radius=r;return [cam.theta,cam.phi,cam.radius];};
+  if(DEBUG)window.__pyr=function(v){if(S.pentPyrMesh)S.pentPyrMesh.visible=(v!==0);if(leafMesh)leafMesh.visible=(v!==2);return {pyr:S.pentPyrMesh?S.pentPyrMesh.visible:null,leaf:leafMesh?leafMesh.visible:null};};   // v=0 只留山体 / v=2 只留花盘 / 1 全部   // 调试：隐藏/显示山体，分辨"灰带"是露底还是花盘间隙
+  if(DEBUG)window.__pyrColor=function(h){
+    var m=S.pentPyrMesh&&S.pentPyrMesh.material; if(!m)return false;
+    /* 染品红时同时用 emissive（自发光=不受光照影响）→ 像素值恒为 (255,0,255)，
+       避免"阴影面被判成非品红"的漏检。 */
+    if(h==null){m.color.set(0xc4c9cf);m.emissive.set(0x000000);}
+    else{m.color.set(0x000000);m.emissive.set(h);}
+    m.needsUpdate=true; return {color:m.color.getHex(),emissive:m.emissive.getHex(),visible:S.pentPyrMesh.visible};
+  };  // 调试：把山体染成品红 → 数"露底像素"
+  if(DEBUG)window.__pentSet=function(o){if(o){for(var k in o)S[k]=o[k];}S._pentCover=null;buildFractal(true);
+    return {petal:S.ifsPetal,dr:S.ifsDr,fill:S.ifsFill,spin:S.ifsSpin,n:S.ifsN,info:S.ifsInfo};};   // 调试：直接设五棱锥求解参数
+  // 只读：叶锥世界轴向 y 分布（axis=(m[4],m[5],m[6])；y<0=尖朝下底面朝上=可见平底）
+  // 只读：落地底盘与叶锥真实底面贴合诊断（用于校对盘顶面=锥底面）
+  if(DEBUG)window.__base=function(){
+    var ls=S.leaves||[],all=[],trunks=[];
+    ls.forEach(function(d){
+      if(!d.m)return;
+      var e=d.m.elements,ax=Math.hypot(e[4],e[5],e[6])||1;
+      var ay=Math.max(-1,Math.min(1,e[5]/ax)),r=(d.r||0);
+      var bottom=e[13]-r*Math.sqrt(Math.max(0,1-ay*ay));  // 底面圆盘最低点(考虑倾斜)
+      var rec={y:e[13],r:r,ay:ay,bottom:bottom,trunk:!!d.trunk};
+      all.push(rec);if(d.trunk)trunks.push(rec);
+    });
+    var mn=function(a){return a.reduce(function(p,c){return Math.min(p,c.bottom);},1e9);};
+    var bm=S.growBaseMesh,bt=null;
+    if(bm){bm.geometry.computeBoundingBox();bt=bm.geometry.boundingBox.max.y;}
+    return {form:S.form,count:all.length,minAll:mn(all),
+            minTrunk:trunks.length?mn(trunks):null,trunkN:trunks.length,
+            baseTopY:bt,overlap:S.hexOverlap,cutY:S.cutY};
+  };
+  // 只读：导出三角面裁剪自检（盘底以下应无顶点）
+  if(DEBUG)window.__clipCheck=function(){
+    var tris=collectTriangles(5),cutMm=(S.cutY!=null)?S.cutY/MM:null;
+    var minY=1e9,bad=0;
+    tris.forEach(function(t){
+      for(var i=1;i<9;i+=3){var y=t[i];if(y<minY)minY=y;if(cutMm!=null&&y<cutMm-1e-4)bad++;}
+    });
+    return {tris:tris.length,minYmm:minY,cutMm:cutMm,badVerts:bad};
+  };
+  if(DEBUG)window.__axis=function(){
+    var ls=S.leaves||[],hist=[0,0,0,0,0],minY=9,neg=0,low=0;
+    ls.forEach(function(d){
+      if(!d.m)return;
+      var e=d.m.elements;
+      var ax=Math.hypot(e[4],e[5],e[6])||1, ay=e[5]/ax;   // 世界锥轴 y 分量
+      if(ay<minY)minY=ay;
+      if(ay<0)neg++; else if(ay<0.35)low++;
+      if(ay<0)hist[0]++; else if(ay<0.35)hist[1]++; else if(ay<0.7)hist[2]++; else if(ay<0.9)hist[3]++; else hist[4]++;
+    });
+    return {form:S.form,count:ls.length,minY:minY,neg:neg,low:low,hist:hist,
+            lowQ:!!S._lowQ,budsEff:S.upBudsEff,
+            cullBottom:!!S.cullBottom,cullFloor:S.cullFloor,culled:S.culled,cullFixed:S.cullFixed,
+            trunkBase:!!S.trunkBase,trunkAll:!!S.trunkAll,
+            trunkCones:(S.leaves||[]).filter(function(d){return !!d.trunk;}).length};
+  };
+  // 自动补株只读调试：主株格点、补株重心(内部孔/边缘缺口)、间距 d、实际补株数
+  if(DEBUG)window.__fill=function(){
     var centers=(S.uprightCenters||[]);
     return {
-      autoFill:!!S.autoFill, fillK:S.fillK, fillCount:S.fillCount, d:S.uprightD,
+      autoFill:!!S.autoFill, fillK:S.fillK, fillCount:S.fillCount,
+      fillInner:S.fillInner||0, fillEdge:S.fillEdge||0, d:S.uprightD, upN:S.upN,
       main:centers.filter(function(c){return !c.hole;}),
       holes:centers.filter(function(c){return c.hole;}),
+      edgeHoles:centers.filter(function(c){return c.hole&&c.edge;}),
       cmap:S.cmap
     };
   };
-  window.__poly=(S.form==='poly'&&faces)?{
-    faces:faces.length,
-    pent:faces.filter(function(f){return f.type==='pent';}).length,
-    hex:faces.filter(function(f){return f.type==='hex';}).length,
-    flowers:S.polyFlowers,
-    tileTris:S.polyTileMesh?S.polyTileMesh.geometry.getAttribute('position').count/3:0,
-    cones:S.renderList.length
-  }:null;
+  if(DEBUG)window.__tile=function(){return S.tileInfo||null;};
+  // 只读/调参两用：设置贴片比例系数（hexR/hexRing/hexMid/pentR，单位=棱长）并重建
+  if(DEBUG)window.__tileSet=function(o){S.tileP=o||null;buildFractal(true);return S.tileInfo||null;};
+  // 诊断用：临时改面砖颜色，验证"浅色斑块是不是面砖露出"
+  if(DEBUG)window.__tileColor=function(h){if(S.polyTileMesh)S.polyTileMesh.material.color.set(h||0xc4c9cf);return !!S.polyTileMesh;};
+  if(DEBUG)window.__poly=function(){
+    var fs=S.polyFaces;
+    if((S.form!=='poly'&&S.form!=='pent')||!fs)return null;
+    return {
+      form:S.form,
+      pentSolid:!!S.pentSolid,
+      faces:fs.length,
+      pent:fs.filter(function(f){return f.type==='pent';}).length,
+      hex:fs.filter(function(f){return f.type==='hex';}).length,
+      flowers:S.polyFlowers,
+      tileTris:S.polyTileMesh?S.polyTileMesh.geometry.getAttribute('position').count/3:0,
+      cones:S.renderList.length,
+      dens:S.polyDens||'rich',
+      ifs:S.ifsInfo||null,
+      pentAlgo:S.pentAlgo||'tangent',
+      disks:(S.form==='pent')?(S.pentDisks||[]):null
+    };
+  };
+  // 三种基础分形(grow)螺旋臂配色只读调试：叶锥 seq / 臂号 / 实际颜色分布
+  if(DEBUG)window.__grow=function(){
+    if(S.form!=='fractal')return null;
+    var ls=S.leaves||[],seqs={},arms={},colors={};
+    var fa=S.fibArms||13,fk=(S.fibTwist!=null)?S.fibTwist:2.6;
+    ls.forEach(function(d){
+      var q=(d.seq!=null)?d.seq:0;
+      seqs[q]=1;
+      var arm=((Math.floor(q*(1+fk*0.05))%fa)+fa)%fa;
+      arms[arm]=1;
+      if(d.color)colors[d.color.getHexString()]=1;
+    });
+    return {
+      form:S.form, cmap:S.cmap, leaves:ls.length,
+      withSeq:ls.filter(function(d){return d.seq!=null&&d.seq!==0;}).length,
+      seqDistinct:Object.keys(seqs).length,
+      armDistinct:Object.keys(arms).length,
+      colorDistinct:Object.keys(colors).length,
+      sampleColors:Object.keys(colors).slice(0,12),
+      growBase:!!S.growBase,
+      growBaseShape:S.growBaseShape,
+      growBaseTris:S.growBaseMesh?(S.growBaseMesh.geometry.getAttribute('position').count/3):0,
+      exportTris:collectTriangles(S.stlSeg||5).length
+    };
+  };
 
 
   buildHoneycombCells();
@@ -1373,10 +2730,29 @@ function updateHUD(){
   var n=S.renderList.length,v=S.visible,a=S.angleDeg;
   var fp=fibPair(a),f1=fp[0],f2=fp[1];
   var extra='';
-  var polyInfo=(S.form==='poly')?('<br><b>⚽ 正60面体</b> 32 面贴砖 ｜ 12 五边形(5株中空) + 20 六边形(6+1中实) ｜ 花盘 <b>'+S.polyFlowers+'</b>'):'';
-  var algo=(S.form==='upright'||S.form==='poly')?('<br>分布算法 <b>'+spiralModeName(S.spiralMode)+'</b>'+(S.spiralMode==='custom'?' '+Math.round(S.spiralDeg)+'°':'')+
+  var polyInfo='';
+  if(S.form==='poly')polyInfo='<br><b>⚽ 正60面体</b> 32 面 ｜ '+
+    (S.polyDens==='one'
+      ? 'LOD <b>单朵·精雕</b>（每面 1 株）'
+      : 'LOD <b>贴砖·密集</b>：12 五边形(5+中心+5缝) + 20 六边形(6+1)')+
+    ' ｜ 花盘 <b>'+S.polyFlowers+'</b> 株';
+  else if(S.form==='pent'){
+    var pi2=S.ifsInfo||{};
+    if(S.pentAlgo==='ifs')
+      polyInfo='<br><b>⬟ 正五边形 · IFS</b> Sierpinski（r=0.381966，'+ (S.ifsDepth||2) +' 层'+(S.ifsCenter!==false?' + 中心图':'')+'） ｜ 花盘 <b>'+S.polyFlowers+'</b>';
+    else if(S.pentAlgo==='ifs3d'){
+      var cv=(pi2.cover==null?0:pi2.cover)*100;
+      polyInfo='<br><b>⬟ 五棱锥花盘山 · 面内无缝铺满</b> ｜ 覆盖 <b style="color:'+(cv>=99.9?'#1b8a3a':'#b3541e')+'">'+cv.toFixed(2)+'%</b>'+
+        '（栅格 '+(pi2.total||0)+' 点 · 7 圆盘真实并集）<br>花盘 <b>'+S.polyFlowers+'</b> 株 = 5 坡面 × '+(pi2.perFace||0)+
+        '（基准 '+(pi2.base||0)+' + 补缝 '+(pi2.added||0)+'）｜ 花瓣环 '+(pi2.petal||0).toFixed(2)+'b ｜ 间距 '+(pi2.dr||0).toFixed(2)+'·rf'+
+        ' ｜ 相位 '+(pi2.spin||0)+'°';
+    }
+    else
+      polyInfo='<br><b>⬟ 正五边形花盘</b> '+(S.pentSolid?'6 株中实（5 环绕+中心）':'5 株中空')+' ｜ 花盘 <b>'+S.polyFlowers+'</b>';
+  }
+  var algo=(S.form==='upright'||S.form==='poly'||S.form==='pent')?('<br>分布算法 <b>'+spiralModeName(S.spiralMode)+'</b>'+(S.spiralMode==='custom'?' '+Math.round(S.spiralDeg)+'°':'')+
     ' ｜ 生效芽数 <b>'+(S.upBudsEff||S.upBuds)+'</b>'+(S.upBudsEff&&S.upBudsEff<S.upBuds?'（预算收敛）':'')+
-    (S.autoFill?'<br>三角孔补株 <b>开</b> ｜ 白隙补小株 <b>'+S.fillCount+'</b> 株（'+S.fillK.toFixed(2)+'×）':'')+
+    (S.autoFill?'<br>自动填满 <b>开</b> ｜ 补小株 <b>'+S.fillCount+'</b>（内部孔 '+(S.fillInner||0)+' + 边缘缺口 '+(S.fillEdge||0)+'，'+S.fillK.toFixed(2)+'×）':'')+
     (S.hexBase?'<br>六边形砖底盘 <b>开</b> ｜ '+S.hexThick+'mm ｜ 重叠 '+S.hexOverlap.toFixed(2):'')):'';
   $('hudBody').innerHTML='锥体总数 <b>'+n+'</b> ｜ 已长出 <b>'+v+'</b><br>'+
     '自相似层数 <b>'+S.levels+'</b> ｜ 发散角 <b>'+a.toFixed(3)+'°</b><br>'+
@@ -1413,19 +2789,24 @@ function setRanges(p){
   $('palette').value=p.pal;$('vPalette').textContent=PALETTES[p.pal].name;
   S.levels=p.levels;S.angleDeg=p.angle;S.cones=p.cones;S.r2l=p.r2l;S.i2o=p.i2o;S.pal=p.pal;
   S.form=p.form||'fractal';
-  if(S.form==='upright'||S.form==='poly'){
+  if(S.form==='upright'||S.form==='poly'||S.form==='pent'){
     S.upN=p.cones; if($('upN')){$('upN').value=p.cones;$('vUpN').textContent=p.cones;}
-    S.upBuds=p.upBuds!=null?p.upBuds:55;
+    S.upBuds=p.upBuds!=null?p.upBuds:25;
+    if(p.pentSolid!=null)S.pentSolid=p.pentSolid;   // 正五边形 5/6 株形态
     S.upTilt=p.upTilt!=null?p.upTilt:1.0;
     S.upSpread=1.0;
     if($('upBuds')){$('upBuds').value=S.upBuds;$('vUpBuds').textContent=S.upBuds;}
     if($('upTilt')){$('upTilt').value=Math.round(S.upTilt*100);$('vUpTilt').textContent=S.upTilt.toFixed(2);}
     if($('upSpread')){$('upSpread').value=10;$('vUpSpread').textContent='1.00×';}
   }
-  // 直立花盘 / 正60面体专用参数区显隐
-  if($('upSec'))$('upSec').style.display=(S.form==='upright'||S.form==='poly')?'block':'none';
+  // 直立花盘 / 正60面体 / 正五边形专用参数区显隐
+  if($('upSec'))$('upSec').style.display=(S.form==='upright'||S.form==='poly'||S.form==='pent')?'block':'none';
   if($('polyNote'))$('polyNote').style.display=(S.form==='poly')?'block':'none';
+  if($('pentNote'))$('pentNote').style.display=(S.form==='pent')?'block':'none';
   if($('polyEdgesRow'))$('polyEdgesRow').style.display=(S.form==='poly')?'flex':'none';
+  if($('polyDensRow'))$('polyDensRow').style.display=(S.form==='poly')?'block':'none';
+  // 三种分形塔落地底盘：仅 fractal 形态显示
+  if($('growBaseSec'))$('growBaseSec').style.display=(S.form==='fractal')?'block':'none';
   syncAlgoUI();
 }
 function spiralModeName(m){
@@ -1438,6 +2819,32 @@ function applySpiralMode(m){
   if(m!=='custom'&&DEG[m]!=null)S.spiralDeg=DEG[m];
   syncAlgoUI();
 }
+function syncPentUI(){
+  var isPent=(S.form==='pent'), algo=S.pentAlgo||'tangent';
+  if($('pentAlgo'))$('pentAlgo').value=algo;
+  if($('vPentAlgo'))$('vPentAlgo').textContent={tangent:'相切平铺',ifs:'Sierpinski 五边形',ifs3d:'五棱锥花盘山'}[algo]||algo;
+  if($('pentAlgoRow'))$('pentAlgoRow').style.display=isPent?'block':'none';
+  if($('pentSolidRow'))$('pentSolidRow').style.display=(isPent&&algo==='tangent')?'flex':'none';
+  if($('ifsDepthRow'))$('ifsDepthRow').style.display=(isPent&&algo==='ifs')?'block':'none';
+  if($('ifsCenterRow'))$('ifsCenterRow').style.display=(isPent&&algo==='ifs')?'flex':'none';
+  if($('ifsNRow'))$('ifsNRow').style.display=(isPent&&algo==='ifs3d')?'block':'none';
+  var is3d=(isPent&&algo==='ifs3d');
+  if($('ifsFillRow'))$('ifsFillRow').style.display=is3d?'block':'none';
+  if($('ifsAutoRow'))$('ifsAutoRow').style.display=is3d?'flex':'none';
+  if($('ifsAutoNote')){
+    $('ifsAutoNote').style.display=(is3d&&S.ifsAutoMsg)?'block':'none';
+    if(S.ifsAutoMsg)$('ifsAutoNote').innerHTML=S.ifsAutoMsg;
+  }
+  if($('ifsFill')){
+    var fv=(S.ifsFill==null?2:S.ifsFill);
+    $('ifsFill').value=fv;$('vIfsFill').textContent=fv;
+  }
+  if($('ifsNote'))$('ifsNote').style.display=(isPent&&algo!=='tangent')?'block':'none';
+  if($('pentNote'))$('pentNote').style.display=(isPent&&algo==='tangent')?'block':'none';
+  if($('ifsDepth')){$('ifsDepth').value=S.ifsDepth||2;$('vIfsDepth').textContent=S.ifsDepth||2;}
+  if($('ifsCenter'))$('ifsCenter').checked=(S.ifsCenter!==false);
+  if($('ifsN')){$('ifsN').value=S.ifsN||160;$('vIfsN').textContent=S.ifsN||160;}
+}
 function syncAlgoUI(){
   if($('spiralMode')){$('spiralMode').value=S.spiralMode;$('vSpiralMode').textContent=spiralModeName(S.spiralMode);}
   if($('spiralDeg')){$('spiralDeg').value=Math.round(S.spiralDeg);$('vSpiralDeg').textContent=Math.round(S.spiralDeg)+'°';}
@@ -1447,41 +2854,101 @@ function syncAlgoUI(){
   if($('fibArms')){$('fibArms').value=String(S.fibArms);$('vFibArms').textContent=S.fibArms;}
   if($('fibTwist')){$('fibTwist').value=Math.round(S.fibTwist*10);$('vFibTwist').textContent=S.fibTwist.toFixed(1);}
   if($('vUpBuds'))$('vUpBuds').textContent=S.upBuds;
+  if($('trimApex'))$('trimApex').checked=!!S.trimApex;
   if($('polyEdges'))$('polyEdges').checked=!!S.polyEdges;
-  if($('autoFill')){$('autoFill').checked=!!S.autoFill;$('autoFill').disabled=(S.form==='poly');}
+  if($('polyDens'))$('polyDens').value=(S.polyDens==='one')?'one':'rich';
+  if($('vPolyDens'))$('vPolyDens').textContent=(S.polyDens==='one')?'单朵·精雕':'贴砖·密集';
+  if($('pentSolid'))$('pentSolid').checked=!!S.pentSolid;
+  syncPentUI();
+  var tiled=(S.form==='poly'||S.form==='pent');
+  if($('autoFill')){$('autoFill').checked=!!S.autoFill;$('autoFill').disabled=tiled;}
   if($('fillK')){$('fillK').value=Math.round(S.fillK*100);$('vFillK').textContent=S.fillK.toFixed(2)+'×';}
-  if($('fillKRow'))$('fillKRow').style.display=(S.autoFill&&S.form!=='poly')?'block':'none';
-  if($('hexBase')){$('hexBase').checked=!!S.hexBase;$('hexBase').disabled=(S.form==='poly');}
+  if($('fillKRow'))$('fillKRow').style.display=(S.autoFill&&!tiled)?'block':'none';
+  if($('hexBase')){$('hexBase').checked=!!S.hexBase;$('hexBase').disabled=tiled;}
   if($('hexBaseOpts'))$('hexBaseOpts').style.display=S.hexBase?'block':'none';
   if($('hexThick')){$('hexThick').value=Math.round(S.hexThick);$('vHexThick').textContent=S.hexThick+' mm';}
   if($('hexOverlap')){$('hexOverlap').value=Math.round(S.hexOverlap*100);$('vHexOverlap').textContent=S.hexOverlap.toFixed(2);}
+  if($('growBase'))$('growBase').checked=!!S.growBase;
+  if($('growBaseShape'))$('growBaseShape').value=S.growBaseShape||'round';
+  if($('trunkBase'))$('trunkBase').checked=!!S.trunkBase;
+  if($('trunkAll'))$('trunkAll').checked=!!S.trunkAll;
+  if($('cullBottom'))$('cullBottom').checked=!!S.cullBottom;
+  if($('cullFloor')){$('cullFloor').value=Math.round(S.cullFloor*100);$('vCullFloor').textContent=S.cullFloor.toFixed(2);}
+  if($('cullFloorRow'))$('cullFloorRow').style.display=S.cullBottom?'block':'none';
 }
 function initUI(){
   $('preset').addEventListener('change',function(){
-    var prev=S.form,p=PRESETS[this.value];setRanges(p);S.prog=0;S.playing=false;
-    if(S.form==='poly'){S.autoFill=false;S.hexBase=false;syncAlgoUI();} // 面砖取代平面底盘/补株
-    else if(prev==='poly'){S.hexBase=true;S.autoFill=false;syncAlgoUI();} // 从多面体返回恢复平面默认底盘
-    $('btnPlay').textContent='▶ 生长';$('prog').value=0;$('vProg').textContent='0%';
+    var prev=S.form,p=PRESETS[this.value];setRanges(p);S.prog=1;S.playing=false;  // 切换任意预设默认长满 100%
+    var wasTiled=(prev==='poly'||prev==='pent'),isTiled=(S.form==='poly'||S.form==='pent');
+    if(isTiled){S.autoFill=false;S.hexBase=false;syncAlgoUI();}       // 面砖取代平面底盘/补株
+    else if(wasTiled){S.hexBase=true;S.autoFill=false;syncAlgoUI();}  // 从贴砖返回恢复平面默认底盘
+    $('btnPlay').textContent='▶ 生长';$('prog').value=1000;$('vProg').textContent='100%';
     buildFractal(true);
   });
   function rb(id,key,fmt,after){
     $(id).addEventListener('input',function(){
       var v=parseFloat(this.value);S[key]=v;$(fmt.id).textContent=fmt.fn(v);
-      if(after)after(v);buildFractal(true);
+      if(after)after(v);rebLow();
     });
   }
   rb('levels','levels',{id:'vLevels',fn:function(v){return v;}});
   rb('angle','angleDeg',{id:'vAngle',fn:function(v){return v.toFixed(3)+'°';}});
   rb('cones','cones',{id:'vCones',fn:function(v){return v;}});
-  $('r2l').addEventListener('input',function(){S.r2l=parseInt(this.value,10)/100;$('vR2L').textContent=S.r2l.toFixed(2);buildFractal(true);});
+  $('r2l').addEventListener('input',function(){S.r2l=parseInt(this.value,10)/100;$('vR2L').textContent=S.r2l.toFixed(2);rebLow();});
   $('btnPyramid').addEventListener('click',function(){
     S.r2l=PYRAMID_RL;
     $('r2l').value=Math.round(S.r2l*100);
     $('vR2L').textContent='1.1118 🔺';
     buildFractal(true);
   });
-  $('i2o').addEventListener('input',function(){S.i2o=parseInt(this.value,10)/100;$('vI2O').textContent=S.i2o.toFixed(2);buildFractal(true);});
-  $('upN').addEventListener('input',function(){S.upN=parseInt(this.value,10);$('vUpN').textContent=S.upN;buildFractal(true);});
+  $('btnAngle45').addEventListener('click',function(){
+    S.angleDeg=45;
+    $('angle').value=45;$('vAngle').textContent='45.000°';
+    buildFractal(true);
+  });
+  $('btnAngleGolden').addEventListener('click',function(){
+    S.angleDeg=137.508;
+    $('angle').value=137.508;$('vAngle').textContent='137.508°';
+    buildFractal(true);
+  });
+  $('pentSolid').addEventListener('change',function(){S.pentSolid=this.checked;rebNow();});
+  /* 正五边形底层算法：相切平铺 / Sierpinski 五边形 IFS / 五棱锥花盘山 IFS */
+  $('pentAlgo').addEventListener('change',function(){
+    S.pentAlgo=this.value;
+    if($('vPentAlgo'))$('vPentAlgo').textContent={tangent:'相切平铺',ifs:'Sierpinski 五边形',ifs3d:'五棱锥花盘山'}[S.pentAlgo]||S.pentAlgo;
+    syncPentUI();rebNow();
+  });
+  $('ifsDepth').addEventListener('input',function(){
+    S.ifsDepth=parseInt(this.value,10);$('vIfsDepth').textContent=S.ifsDepth;rebLow();
+  });
+  $('ifsN').addEventListener('input',function(){
+    S.ifsN=parseInt(this.value,10);$('vIfsN').textContent=S.ifsN;rebLow();
+  });
+  $('ifsFill').addEventListener('input',function(){
+    S.ifsFill=parseInt(this.value,10);$('vIfsFill').textContent=S.ifsFill;rebLow();
+  });
+  /* 一键最优：面内覆盖求解（花瓣环/间距比/相位搜索）→ 应用 → 重建 */
+  $('btnPentAuto').addEventListener('click',function(){
+    var btn=this, old=btn.textContent;
+    btn.textContent='⏳ 求解中…';btn.disabled=true;
+    setTimeout(function(){
+      var t0=performance.now();
+      pentAutoTune();
+      buildFractal(true);
+      S.ifsAutoMsg=S.ifsAutoMsg+'<br><span style="color:#5a6672">求解+重建 '+Math.round(performance.now()-t0)+' ms</span>';
+      syncPentUI();
+      btn.textContent=old;btn.disabled=false;
+    },30);
+  });
+  $('ifsCenter').addEventListener('change',function(){S.ifsCenter=this.checked;rebNow();});
+  $('growBase').addEventListener('change',function(){S.growBase=this.checked;rebNow();});
+  $('growBaseShape').addEventListener('change',function(){S.growBaseShape=this.value;rebNow();});
+  $('trunkBase').addEventListener('change',function(){S.trunkBase=this.checked;rebNow();});
+  $('trunkAll').addEventListener('change',function(){S.trunkAll=this.checked;rebNow();});
+  $('cullBottom').addEventListener('change',function(){S.cullBottom=this.checked;$('cullFloorRow').style.display=S.cullBottom?'block':'none';rebNow();});
+  $('cullFloor').addEventListener('input',function(){S.cullFloor=parseInt(this.value,10)/100;$('vCullFloor').textContent=S.cullFloor.toFixed(2);rebLow();});
+  $('i2o').addEventListener('input',function(){S.i2o=parseInt(this.value,10)/100;$('vI2O').textContent=S.i2o.toFixed(2);rebLow();});
+  $('upN').addEventListener('input',function(){S.upN=parseInt(this.value,10);$('vUpN').textContent=S.upN;rebLow();});
   $('btnGrowRing').addEventListener('click',function(){
     // 中心六边形数 3k²+3k+1：1,7,19,37,61,91,127
     var seq=[];for(var k=0;k<=6;k++)seq.push(3*k*k+3*k+1);
@@ -1491,25 +2958,31 @@ function initUI(){
     S.upN=next;$('upN').value=next;$('vUpN').textContent=next;
     buildFractal(true);
   });
-  $('upSpread').addEventListener('input',function(){S.upSpread=parseInt(this.value,10)/10;$('vUpSpread').textContent=S.upSpread.toFixed(2)+'×';buildFractal(true);});
-  $('polyEdges').addEventListener('change',function(){S.polyEdges=this.checked;buildFractal(true);});
-  $('autoFill').addEventListener('change',function(){S.autoFill=this.checked;if($('fillKRow'))$('fillKRow').style.display=S.autoFill?'block':'none';buildFractal(true);});
-  $('fillK').addEventListener('input',function(){S.fillK=parseInt(this.value,10)/100;$('vFillK').textContent=S.fillK.toFixed(2)+'×';buildFractal(true);});
-  $('hexBase').addEventListener('change',function(){S.hexBase=this.checked;if($('hexBaseOpts'))$('hexBaseOpts').style.display=S.hexBase?'block':'none';buildFractal(true);});
-  $('hexThick').addEventListener('input',function(){S.hexThick=parseInt(this.value,10);$('vHexThick').textContent=S.hexThick+' mm';buildFractal(true);});
-  $('hexOverlap').addEventListener('input',function(){S.hexOverlap=parseInt(this.value,10)/100;$('vHexOverlap').textContent=S.hexOverlap.toFixed(2);buildFractal(true);});
-  $('upBuds').addEventListener('input',function(){S.upBuds=parseInt(this.value,10);$('vUpBuds').textContent=S.upBuds;buildFractal(true);});
-  $('upTilt').addEventListener('input',function(){S.upTilt=parseInt(this.value,10)/100;$('vUpTilt').textContent=S.upTilt.toFixed(2);buildFractal(true);});
-  $('spiralMode').addEventListener('change',function(){applySpiralMode(this.value);buildFractal(true);});
-  $('spiralDeg').addEventListener('input',function(){S.spiralDeg=parseInt(this.value,10);$('vSpiralDeg').textContent=S.spiralDeg+'°';buildFractal(true);});
-  $('cmap').addEventListener('change',function(){S.cmap=this.value;syncAlgoUI();buildFractal(true);});
-  $('fibArms').addEventListener('change',function(){S.fibArms=parseInt(this.value,10);$('vFibArms').textContent=S.fibArms;buildFractal(true);});
-  $('fibTwist').addEventListener('input',function(){S.fibTwist=parseInt(this.value,10)/10;$('vFibTwist').textContent=S.fibTwist.toFixed(1);buildFractal(true);});
+  $('upSpread').addEventListener('input',function(){S.upSpread=parseInt(this.value,10)/10;$('vUpSpread').textContent=S.upSpread.toFixed(2)+'×';rebLow();});
+  $('polyEdges').addEventListener('change',function(){S.polyEdges=this.checked;rebNow();});
+  $('polyDens').addEventListener('change',function(){
+    S.polyDens=(this.value==='one')?'one':'rich';
+    if($('vPolyDens'))$('vPolyDens').textContent=(S.polyDens==='one')?'单朵·精雕':'贴砖·密集';
+    rebNow();
+  });
+  $('autoFill').addEventListener('change',function(){S.autoFill=this.checked;if($('fillKRow'))$('fillKRow').style.display=S.autoFill?'block':'none';rebNow();});
+  $('fillK').addEventListener('input',function(){S.fillK=parseInt(this.value,10)/100;$('vFillK').textContent=S.fillK.toFixed(2)+'×';rebLow();});
+  $('hexBase').addEventListener('change',function(){S.hexBase=this.checked;if($('hexBaseOpts'))$('hexBaseOpts').style.display=S.hexBase?'block':'none';rebNow();});
+  $('hexThick').addEventListener('input',function(){S.hexThick=parseInt(this.value,10);$('vHexThick').textContent=S.hexThick+' mm';rebLow();});
+  $('hexOverlap').addEventListener('input',function(){S.hexOverlap=parseInt(this.value,10)/100;$('vHexOverlap').textContent=S.hexOverlap.toFixed(2);rebLow();});
+  $('upBuds').addEventListener('input',function(){S.upBuds=parseInt(this.value,10);$('vUpBuds').textContent=S.upBuds;rebLow();});
+  $('trimApex').addEventListener('change',function(){S.trimApex=this.checked;rebNow();});
+  $('upTilt').addEventListener('input',function(){S.upTilt=parseInt(this.value,10)/100;$('vUpTilt').textContent=S.upTilt.toFixed(2);rebLow();});
+  $('spiralMode').addEventListener('change',function(){applySpiralMode(this.value);rebNow();});
+  $('spiralDeg').addEventListener('input',function(){S.spiralDeg=parseInt(this.value,10);$('vSpiralDeg').textContent=S.spiralDeg+'°';rebLow();});
+  $('cmap').addEventListener('change',function(){S.cmap=this.value;syncAlgoUI();rebNow();});
+  $('fibArms').addEventListener('change',function(){S.fibArms=parseInt(this.value,10);$('vFibArms').textContent=S.fibArms;rebNow();});
+  $('fibTwist').addEventListener('input',function(){S.fibTwist=parseInt(this.value,10)/10;$('vFibTwist').textContent=S.fibTwist.toFixed(1);rebLow();});
   $('speed').addEventListener('input',function(){S.speed=parseInt(this.value,10)/100;$('vSpeed').textContent=S.speed.toFixed(1)+'×';});
-  $('palette').addEventListener('change',function(){S.pal=parseInt(this.value,10);$('vPalette').textContent=PALETTES[S.pal].name;buildFractal(true);});
+  $('palette').addEventListener('change',function(){S.pal=parseInt(this.value,10);$('vPalette').textContent=PALETTES[S.pal].name;rebNow();});
   $('spin').addEventListener('change',function(){S.spin=this.checked;});
-  $('showSpiral').addEventListener('change',function(){S.spiral=this.checked;buildFractal(true);});
-  $('wireframe').addEventListener('change',function(){S.wire=this.checked;buildFractal(true);});
+  $('showSpiral').addEventListener('change',function(){S.spiral=this.checked;rebNow();});
+  $('wireframe').addEventListener('change',function(){S.wire=this.checked;rebNow();});
   $('prog').addEventListener('input',function(){
     S.prog=parseInt(this.value,10)/1000;S.playing=false;$('btnPlay').textContent='▶ 生长';
     $('vProg').textContent=Math.round(S.prog*100)+'%';updateInstances(S.prog);updateHUD();
@@ -1526,20 +2999,64 @@ function initUI(){
     $('prog').value=Math.round(S.prog*1000);$('vProg').textContent=Math.round(S.prog*100)+'%';
     updateInstances(S.prog);updateHUD();
   });
-  $('btnSeed').addEventListener('click',function(){S.seed=(Math.random()*1e9)|0;buildFractal(true);});
+  $('btnSeed').addEventListener('click',function(){S.seed=(Math.random()*1e9)|0;rebNow();});
 
-  /* ---- STL 导出 ---- */
-  $('stlSeg').addEventListener('change',function(){S.stlSeg=parseInt(this.value,10);$('vStlSeg').textContent=this.value;});
+  /* 关键补丁：range 滑块松手会触发 change，但上面只挂了 input（→ 低精度预览）。
+     不补这一层，拖动结束后画面会永远停在 22% 预算的稀疏状态。
+     prog（生长进度）、speed（播放速度）不重建几何，排除在外。 */
+  var _noRebuild={prog:1,speed:1};
+  Array.prototype.forEach.call(document.querySelectorAll('input[type=range]'),function(el){
+    if(_noRebuild[el.id])return;
+    el.addEventListener('change',function(){rebNow();});
+  });
+
+  /* ---- 导出：先给遮罩反馈，两帧后跑同步计算 ---- */
+  $('stlSeg').addEventListener('change',function(){S.stlSeg=parseInt(this.value,10);$('vStlSeg').textContent=this.value;S._triCache=null;});
   $('expFmt').addEventListener('change',function(){$('vFmt').textContent=this.options[this.selectedIndex].text.split(' ')[0];});
   $('btnTop').addEventListener('click',function(){cam.phi=0.12;cam.theta=0;cam.target.set(0,0,0);});
+  function busyShow(t,s){$('busyT').textContent=t;$('busyS').textContent=s||'';$('busy').classList.add('on');}
+  function busyHide(){$('busy').classList.remove('on');}
   $('btnSTL').addEventListener('click',function(){
-    var t0=performance.now();
     var fmt=$('expFmt').value;
-    try{
-      var n=window.__exporters[fmt]();
-      if(n<0){$('stlInfo').innerHTML='⚠ 已取消 STEP 导出（面数过多）';return;}
-      $('stlInfo').innerHTML='✅ 已导出 <b>'+fmt.toUpperCase()+'</b> · <b>'+n+'</b> 三角面（mm，'+Math.round(performance.now()-t0)+'ms）';
-    }catch(e){$('stlInfo').innerHTML='❌ 导出失败：'+e.message;}
+    var NM={stl:'STL',obj:'OBJ',ply:'PLY',step:'STEP',stp:'STEP'};
+    var nm=NM[fmt]||String(fmt).toUpperCase();
+    var needRebuild=!!S._lowQ;
+    busyShow(needRebuild?'正在按全精度重建…':('正在导出 '+nm+'…'),
+             needRebuild?('当前为拖动预览精度，先补建完整模型')
+                        :('共 '+S.renderList.length.toLocaleString()+' 个锥 · 请稍候'));
+    // 两帧：让遮罩先真的画出来，再进同步计算
+    requestAnimationFrame(function(){requestAnimationFrame(function(){
+      if(needRebuild)buildFractal(true,false);
+      var t0=performance.now();
+      try{
+        var n=EXPORTERS[fmt]();
+        if(n<0){$('stlInfo').innerHTML='⚠ 已取消 STEP 导出（面数过多）';busyHide();return;}
+        $('stlInfo').innerHTML='✅ 已导出 <b>'+nm+'</b> · <b>'+n.toLocaleString()+'</b> 三角面（mm，'+Math.round(performance.now()-t0)+'ms）';
+      }catch(e){$('stlInfo').innerHTML='❌ 导出失败：'+e.message;}
+      busyHide();
+    });});
+  });
+
+  /* ---- 水密体重铸导出（SDF 并集 + Surface Nets） ---- */
+  $('printRes').addEventListener('change',function(){$('vPrintRes').textContent=this.options[this.selectedIndex].text.replace('· ',' · ');});
+  $('btnPrint').addEventListener('click',function(){
+    var res=parseInt($('printRes').value,10)||144;
+    var withBase=!!$('printBase').checked;
+    var needRebuild=!!S._lowQ;
+    busyShow('正在重铸水密网格…','体素 '+res+' 档 · 共 '+S.renderList.length.toLocaleString()+' 个锥 · 可能需要几秒');
+    requestAnimationFrame(function(){requestAnimationFrame(function(){
+      if(needRebuild)buildFractal(true,false);
+      var t0=performance.now();
+      try{
+        var n=PRINTAPI.run(res,withBase);
+        var st=(PRINTAPI.stat.last)||{};
+        $('printInfo').innerHTML='✅ 水密 STL · <b>'+n.toLocaleString()+'</b> 三角面 ｜ 体素 <b>'+
+          (st.vox?st.vox.toFixed(2):'?')+'mm</b>（'+st.nx+'×'+st.ny+'×'+st.nz+'）｜ 闭合自检：边界边 <b>'+
+          (st.boundary|0)+'</b> · 自接触边 <b>'+(st.nonManifold|0)+'</b> ｜ 体积 <b>'+
+          (st.volume?Math.round(st.volume/1000):'?')+' cm³</b> ｜ '+Math.round(performance.now()-t0)+'ms';
+      }catch(e){$('printInfo').innerHTML='❌ 重铸失败：'+e.message;}
+      busyHide();
+    });});
   });
 
   /* ---- 右浮窗：收起 / 拖动 / 宽度可调；HUD 收起；让位跟随 --dw（SOUL F13/N199） ---- */

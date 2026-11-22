@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 预览_*.png
 _dev/_cdp_*/
+_dev/_chk/
+_dev/*.log

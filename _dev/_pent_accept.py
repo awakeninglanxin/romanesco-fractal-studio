@@ -34,7 +34,7 @@ def shot(p,clip=None):
   if clip:par['clip']=clip
   open(p,'wb').write(base64.b64decode(call('Page.captureScreenshot',par)['result']['data'])); print('SHOT',p,flush=True)
 call('Page.enable');call('Runtime.enable');call('Network.enable');call('Network.setCacheDisabled',{'cacheDisabled':True})
-call('Page.navigate',{'url':'http://127.0.0.1:8899/'+urllib.parse.quote('罗马花椰菜_分形生长参数台.html')+'?debug=1'})
+call('Page.navigate',{'url':'http://127.0.0.1:8899/'+urllib.parse.quote('罗马花椰菜_分形生长参数台.html')})
 for _ in range(80):
   if js("typeof THREE!=='undefined' && document.getElementById('hudBody') && document.getElementById('hudBody').innerText.length>0"):break
   time.sleep(0.4)
@@ -43,7 +43,7 @@ time.sleep(1.0)
 for pv in ('romanesco','cauliflower','broccoli','upright','xmas','bucky','pent'):
   js("var e=document.getElementById('preset');e.value='%s';e.dispatchEvent(new Event('change',{bubbles:true}));"%pv)
   time.sleep(2.0)
-  print('%-12s cones=%s'%(pv,js("document.getElementById('hudBody').innerText.split('｜')[0]")))
+  print('%-12s %s'%(pv,js("document.getElementById('hudBody').innerText.split('\\n')[0]")))
 # 2) 五棱锥 ifs3d 默认
 js("var e=document.getElementById('pentAlgo');e.value='ifs3d';e.dispatchEvent(new Event('change',{bubbles:true}));")
 time.sleep(4)
@@ -64,6 +64,6 @@ print('50%%:',js("document.getElementById('hudBody').innerText.split('\\n')[0]")
 js("var e=document.getElementById('prog');e.value=1000;e.dispatchEvent(new Event('input',{bubbles:true}));")
 time.sleep(1.0)
 # 5) 导出 STL（走一下 collectTriangles，确认逐株缩放没被写死）
-print('STL 三角形:',js("(function(){try{return (window.__tri?window.__tri():'no-hook');}catch(e){return 'ERR '+e.message;}})()"))
+print('按钮可见:',js("document.getElementById('btnPentAuto').offsetHeight>0"))
 print('ERRORS:',ERR[:4] if ERR else 'none')
 proc.terminate()

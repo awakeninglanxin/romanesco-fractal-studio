@@ -47,7 +47,7 @@ js("var e=document.getElementById('preset');e.value='pent';e.dispatchEvent(new E
 time.sleep(1.0)
 js("var e=document.getElementById('pentAlgo');e.value='ifs3d';e.dispatchEvent(new Event('change',{bubbles:true}));")
 time.sleep(6)
-js("window.__camSet(0.55,0.80,17)")
+js("window.__camSet(0.02,0.02,16)")
 time.sleep(1.0)
 box=js("(function(){var r=document.getElementById('cv').getBoundingClientRect();return {x:Math.round(r.x+60),y:Math.round(r.y+30),width:Math.round(r.width-120),height:Math.round(r.height-60)};})()")
 print('clip',box)
@@ -66,13 +66,11 @@ def measure(tag, opts):
     print('%-22s 品红像素 %6d / %6d = %5.2f%%   ifs=%s'%(tag,st['magenta'],st['total'],st['mag_pct'],d),flush=True)
 
 import sys as _s
-CFG={'A':('A_petal2.0',{'ifsPetal':2.0,'ifsDr':1.44,'ifsFill':2}),
-     'B':('B_petal1.85',{'ifsPetal':1.85,'ifsDr':1.44,'ifsFill':2}),
-     'C':('C_petal1.70',{'ifsPetal':1.70,'ifsDr':1.44,'ifsFill':2}),
-     'D':('D_fill0',{'ifsPetal':1.70,'ifsDr':1.44,'ifsFill':0}),
-     'E':('E_N40',{'ifsPetal':1.70,'ifsDr':1.44,'ifsFill':2,'ifsN':40}),
-     'F':('F_N160',{'ifsPetal':1.70,'ifsDr':1.44,'ifsFill':2,'ifsN':160})}
-for k in (_s.argv[1] if len(_s.argv)>1 else 'ABCDEF'):
+CFG={'A':('A_tangentRosette',{'ifsPetal':2.0,'ifsDr':1.44,'ifsFill':2,'ifsN':160}),
+     'B':('B_petal1.70',{'ifsPetal':1.70,'ifsDr':1.44,'ifsFill':2,'ifsN':160}),
+     'C':('C_auto175',{'ifsPetal':1.75,'ifsDr':1.46,'ifsFill':2,'ifsN':160}),
+     'D':('D_fill0',{'ifsPetal':1.70,'ifsDr':1.44,'ifsFill':0,'ifsN':160})}
+for k in (_s.argv[1] if len(_s.argv)>1 else 'ABCD'):
     measure(CFG[k][0],CFG[k][1])
 print('ERR',ERR[:4] if ERR else 'none')
 proc.terminate()
